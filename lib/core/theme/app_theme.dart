@@ -7,13 +7,13 @@ class AppTheme {
     primaryColor: AppColors.primary,
     scaffoldBackgroundColor: AppColors.background,
     appBarTheme: AppBarTheme(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       elevation: 0,
+      scrolledUnderElevation: 0,
       centerTitle: true,
-      titleTextStyle: TextStyle(
-        color: AppColors.textPrimary,
+      titleTextStyle: AppTextStyles.headerMedium.copyWith(
         fontSize: 18,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w800,
       ),
       iconTheme: IconThemeData(color: AppColors.textPrimary),
     ),

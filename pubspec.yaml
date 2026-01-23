@@ -13,8 +13,12 @@ dependencies:
   provider: ^6.1.2
   http: ^1.1.0
   shared_preferences: ^2.2.2
-  # Remove optional packages for now to reduce errors
-  # Add these back later: audioplayers, record, etc.
+  
+  # Audio & Recording packages
+  audioplayers: ^5.0.0
+  record: ^5.0.0
+  permission_handler: ^11.0.0
+  path_provider: ^2.1.0
 
 dev_dependencies:
   flutter_test:

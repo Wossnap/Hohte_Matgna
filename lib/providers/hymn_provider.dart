@@ -1,3 +1,4 @@
+/// Provider for fetching and managing the list of hymns, including filtering and searching.
 import 'package:flutter/material.dart';
 import '../models/hymn_model.dart';
 import '../models/pagination_model.dart';
@@ -87,14 +88,28 @@ class HymnProvider with ChangeNotifier {
 
   /// Search
   void setSearchQuery(String query) {
+    if (_searchQuery == query) return;
     _searchQuery = query;
     loadHymns();
   }
 
-  /// Filters
-  void setFilters({int? categoryId, int? scaleId, String? sort}) {
+  /// Set Category Filter
+  void setCategoryId(int? categoryId) {
+    if (_selectedCategoryId == categoryId) return;
     _selectedCategoryId = categoryId;
+    loadHymns();
+  }
+
+  /// Set Scale Filter
+  void setScaleId(int? scaleId) {
+    if (_selectedScaleId == scaleId) return;
     _selectedScaleId = scaleId;
+    loadHymns();
+  }
+
+  /// Set Sort
+  void setSort(String? sort) {
+    if (_sortBy == sort) return;
     _sortBy = sort;
     loadHymns();
   }

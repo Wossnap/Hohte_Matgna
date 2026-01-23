@@ -1,3 +1,4 @@
+/// Model representing an authenticated user.
 class UserModel {
   final int id;
   final String name;

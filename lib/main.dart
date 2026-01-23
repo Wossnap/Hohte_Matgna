@@ -4,12 +4,14 @@ import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/metadata_provider.dart';
 import 'providers/hymn_provider.dart';
-import 'screens/home/home_screen.dart';
+import 'providers/practice_provider.dart';
 import 'screens/splash_screen.dart';
 // auth_service not used here; AuthProvider handles auth checks
 
 // Login screen import
 import 'screens/login_screen.dart';
+import 'screens/main_navigation_screen.dart';
+import 'providers/locale_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -25,6 +27,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => MetadataProvider()),
         ChangeNotifierProvider(create: (_) => HymnProvider()),
+        ChangeNotifierProvider(create: (_) => PracticeProvider()),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
       ],
       child: MaterialApp(
         title: 'Hohte Matgna',
@@ -58,7 +62,7 @@ class _AppWrapperState extends State<AppWrapper> {
         }
 
         return authProvider.isAuthenticated
-            ? const HomeScreen()
+            ? const MainNavigationScreen()
             : LoginScreen(); // Now properly imported
       },
     );

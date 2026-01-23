@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../providers/hymn_provider.dart';
+import '../../../providers/locale_provider.dart';
 
 class SearchField extends StatefulWidget {
   const SearchField({super.key});
@@ -49,39 +50,40 @@ class _SearchFieldState extends State<SearchField> {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: _controller,
-      focusNode: _focusNode,
-      decoration: InputDecoration(
-        hintText: 'Search hymns...',
-        hintStyle: AppTextStyles.bodyMedium.copyWith(
-          color: AppColors.textSecondary.withAlpha((0.6 * 255).round()),
-        ),
-        prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-        suffixIcon: _controller.text.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.clear, size: 20),
-                onPressed: _clearSearch,
-              )
-            : null,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
-        ),
+    final locale = Provider.of<LocaleProvider>(context);
+
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        color: AppColors.greyCard,
+        borderRadius: BorderRadius.circular(16),
       ),
-      style: AppTextStyles.bodyMedium,
-      onSubmitted: (value) => _performSearch(),
+      child: TextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        decoration: InputDecoration(
+          hintText: locale.translate('search_hint'),
+          hintStyle: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.textSecondary.withValues(alpha: 0.5),
+            fontWeight: FontWeight.w500,
+          ),
+          prefixIcon: Icon(Icons.search_rounded, color: AppColors.primary.withValues(alpha: 0.7)),
+          suffixIcon: _controller.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  onPressed: _clearSearch,
+                )
+              : null,
+          filled: false,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+        style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+        onSubmitted: (value) => _performSearch(),
+        onChanged: (value) => setState(() {}),
+      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+/// Provider for fetching and caching static metadata like categories and scales.
 import 'package:flutter/material.dart';
 import '../models/category_model.dart';
 import '../models/scale_model.dart';

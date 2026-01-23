@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../models/hymn_model.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/locale_provider.dart';
 
 class HymnCard extends StatelessWidget {
   final Hymn hymn;
   final VoidCallback onTap;
-  
+
   const HymnCard({
     super.key,
     required this.hymn,
@@ -15,125 +17,121 @@ class HymnCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      hymn.title,
-                      style: AppTextStyles.headerSmall.copyWith(
-                        color: AppColors.primary,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (hymn.category != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withAlpha((0.1 * 255).round()),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        hymn.category!.name,
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              if (hymn.description != null && hymn.description!.isNotEmpty) ...[
-                const SizedBox(height: 8),
+    final locale = Provider.of<LocaleProvider>(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.greyCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title
                 Text(
-                  hymn.description!,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                  hymn.title,
+                  style: AppTextStyles.headerSmall.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _buildStatItem(
-                    Icons.play_arrow,
-                    '${hymn.plays}',
-                    'Plays',
-                  ),
-                  const SizedBox(width: 16),
-                  _buildStatItem(
-                    Icons.repeat,
-                    '${hymn.practices}',
-                    'Practices',
-                  ),
-                  if (hymn.scale != null) ...[
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withAlpha((0.1 * 255).round()),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: AppColors.accent.withAlpha((0.3 * 255).round()),
-                        ),
-                      ),
-                      child: Text(
-                        hymn.scale!.name,
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.accent,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
+                const SizedBox(height: 8),
+
+                // Tags Row (Category & Scale)
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: [
+                    if (hymn.category != null)
+                      _buildMiniBadge(hymn.category!.name, AppColors.primary),
+                    if (hymn.scale != null)
+                      _buildMiniBadge(hymn.scale!.name, AppColors.secondary),
                   ],
-                ],
-              ),
-            ],
+                ),
+                
+                const Spacer(),
+                
+                // Stats & Action
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildStatRow(Icons.play_circle_filled_rounded, '${hymn.plays} ${locale.translate('plays')}', AppColors.primary),
+                      const SizedBox(height: 4),
+                      _buildStatRow(Icons.school_rounded, '${hymn.practices} ${locale.translate('practices')}', AppColors.success),
+                      const Divider(height: 12, thickness: 0.5),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            locale.translate('practice'),
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: AppColors.primary),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStatItem(IconData icon, String value, String label) {
+  Widget _buildMiniBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: AppTextStyles.caption.copyWith(
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatRow(IconData icon, String value, Color color) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: AppColors.textSecondary,
-        ),
-        const SizedBox(width: 4),
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 6),
         Text(
           value,
-          style: AppTextStyles.bodySmall.copyWith(
-            fontWeight: FontWeight.w600,
+          style: AppTextStyles.caption.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 10,
+            color: AppColors.textPrimary,
           ),
-        ),
-        const SizedBox(width: 2),
-        Text(
-          label,
-          style: AppTextStyles.caption,
         ),
       ],
     );

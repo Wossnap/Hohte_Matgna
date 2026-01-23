@@ -1,3 +1,4 @@
+/// Comprehensive model for hymn details, including the base hymn and its split sections.
 import 'hymn_model.dart';
 import 'section_model.dart';
 
@@ -17,24 +18,31 @@ class HymnDetail {
   });
 
   factory HymnDetail.fromJson(Map<String, dynamic> json) {
-    final hymnRaw = json['hymn'];
+    // Handle potential 'data' wrapper from Laravel Resource
+    final data = json['data'] is Map<String, dynamic> ? json['data'] : json;
+    
+    final hymnRaw = data['hymn'];
     Map<String, dynamic> hymnMap;
     if (hymnRaw is Map<String, dynamic>) {
       hymnMap = hymnRaw;
     } else if (hymnRaw is List && hymnRaw.isNotEmpty && hymnRaw[0] is Map<String, dynamic>) {
       hymnMap = hymnRaw[0] as Map<String, dynamic>;
     } else {
-      hymnMap = {};
+      // If hymn is at root of data
+      hymnMap = data;
     }
 
+    // Try to find sections in data['sections'] or data['hymn']['sections']
+    var sectionsRaw = data['sections'] ?? hymnMap['sections'];
+    
     return HymnDetail(
       hymn: Hymn.fromJson(hymnMap),
-        sections: json['sections'] != null && json['sections'] is List
-          ? (json['sections'] as List).map((e) => Section.fromJson(e)).toList()
+      sections: sectionsRaw != null && sectionsRaw is List
+          ? sectionsRaw.map((e) => Section.fromJson(e as Map<String, dynamic>)).toList()
           : [],
-      progress: json['progress'],
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
+      progress: data['progress'],
+      createdAt: data['created_at'] != null ? DateTime.parse(data['created_at']) : null,
+      updatedAt: data['updated_at'] != null ? DateTime.parse(data['updated_at']) : null,
     );
   }
 

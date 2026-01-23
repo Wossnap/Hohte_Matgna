@@ -27,16 +27,18 @@ class ApiClient {
       queryParameters: queryParams?.map((key, value) => MapEntry(key, value.toString())),
     );
     
-    return http.get(uri, headers: headers);
+    final response = await http.get(uri, headers: headers);
+    return response;
   }
 
   static Future<http.Response> post(String endpoint, {Map<String, dynamic>? body}) async {
     final headers = await _getHeaders();
-    return http.post(
+    final response = await http.post(
       Uri.parse('$baseUrl$endpoint'),
       headers: headers,
       body: body != null ? jsonEncode(body) : null,
     );
+    return response;
   }
 
   static Future<http.Response> postMultipart(

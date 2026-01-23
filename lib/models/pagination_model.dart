@@ -1,3 +1,4 @@
+/// Generic model for handling paginated API responses.
 class Pagination<T> {
   final int currentPage;
   final int lastPage;

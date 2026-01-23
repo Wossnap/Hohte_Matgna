@@ -1,3 +1,4 @@
+/// Model representing a hymn category.
 class Category {
   final int id;
   final String name;

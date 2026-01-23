@@ -1,3 +1,4 @@
+/// Model representing the musical scale of a hymn.
 class Scale {
   final int id;
   final String name;

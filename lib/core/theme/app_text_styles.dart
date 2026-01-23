@@ -4,36 +4,40 @@ import 'app_colors.dart';
 class AppTextStyles {
   // Headers
   static TextStyle headerLarge = TextStyle(
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: FontWeight.bold,
     color: AppColors.textPrimary,
+    letterSpacing: -0.5,
   );
   
   static TextStyle headerMedium = TextStyle(
-    fontSize: 22,
-    fontWeight: FontWeight.w600,
+    fontSize: 24,
+    fontWeight: FontWeight.w700,
     color: AppColors.textPrimary,
+    letterSpacing: -0.3,
   );
   
   static TextStyle headerSmall = TextStyle(
-    fontSize: 18,
-    fontWeight: FontWeight.w600,
+    fontSize: 20,
+    fontWeight: FontWeight.w700,
     color: AppColors.textPrimary,
   );
   
   // Body
   static TextStyle bodyLarge = TextStyle(
-    fontSize: 16,
+    fontSize: 18,
     color: AppColors.textPrimary,
+    height: 1.4,
   );
   
   static TextStyle bodyMedium = TextStyle(
-    fontSize: 14,
+    fontSize: 16,
     color: AppColors.textPrimary,
+    height: 1.4,
   );
   
   static TextStyle bodySmall = TextStyle(
-    fontSize: 12,
+    fontSize: 14,
     color: AppColors.textPrimary,
   );
   
