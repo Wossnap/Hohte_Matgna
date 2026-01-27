@@ -6,6 +6,7 @@ import 'package:mobile/models/section_model.dart';
 import 'package:mobile/models/lyric_segment_model.dart';
 import 'package:mobile/providers/practice_provider.dart';
 import 'package:mobile/screens/home/detail/view_models/audio_sync_viewmodel.dart';
+import 'package:mobile/core/api/api_client.dart';
 
 class HymnDetailViewModel extends ChangeNotifier {
   final PracticeProvider _practiceProvider;
@@ -22,6 +23,19 @@ class HymnDetailViewModel extends ChangeNotifier {
   int _selectedSectionIndex = 0;
   int _selectedSegmentIndex = 0;
   bool _isPracticeMode = false;
+
+  // Playback & Loop State
+  double _playbackRate = 1.0;
+  int _loopCount = 0;
+  int _maxLoops = 15;
+  bool _isLiveCompareActive = false;
+
+  // Lyrics Game State
+  bool _showLyricsGame = false;
+  int _gameScore = 0;
+  int _gameCorrect = 0;
+  int _gameTotal = 0;
+  int _currentGameQuestionIndex = 0;
   
   // Segment mapping (section index → segment index → global index)
   final Map<int, Map<int, int>> _segmentMapping = {};
@@ -35,6 +49,20 @@ class HymnDetailViewModel extends ChangeNotifier {
   int get selectedSegmentIndex => _selectedSegmentIndex;
   bool get isPracticeMode => _isPracticeMode;
   AudioSyncViewModel get audioSyncViewModel => _audioSyncViewModel;
+
+  // Playback & Loop Getters
+  double get playbackRate => _playbackRate;
+  int get loopCount => _loopCount;
+  int get maxLoops => _maxLoops;
+  bool get isLiveCompareActive => _isLiveCompareActive;
+
+  // Game Getters
+  bool get showLyricsGame => _showLyricsGame;
+  int get gameScore => _gameScore;
+  int get gameCorrect => _gameCorrect;
+  int get gameTotal => _gameTotal;
+  int get currentGameQuestionIndex => _currentGameQuestionIndex;
+  int get gameAccuracy => _gameTotal > 0 ? ((_gameCorrect / _gameTotal) * 100).round() : 0;
   
   // Current selected section for practice
   Section? get selectedSection {
@@ -113,10 +141,10 @@ class HymnDetailViewModel extends ChangeNotifier {
         // Build segment mapping and cache
         _buildSegmentMapping();
         
-        // Initialize audio sync with first section's segments
-        final firstSectionSegments = getSegmentsForSection(0);
-        if (firstSectionSegments.isNotEmpty) {
-          _audioSyncViewModel.initializeSegments(firstSectionSegments);
+        // Initialize audio sync with ALL segments for Listen Mode
+        final allSegs = allSegments.map((e) => e.segment).toList();
+        if (allSegs.isNotEmpty) {
+          _audioSyncViewModel.initializeSegments(allSegs);
         }
         
         // Load breakpoints for the hymn
@@ -129,7 +157,78 @@ class HymnDetailViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  // Playback Controls
+  void setPlaybackRate(double rate) {
+    _playbackRate = rate;
+    _mainAudioPlayer.setPlaybackRate(rate);
+    notifyListeners();
+  }
+
+  void incrementLoop() {
+    _loopCount++;
+    if (_loopCount >= _maxLoops) {
+      _mainAudioPlayer.pause();
+    }
+    notifyListeners();
+  }
+
+  void resetLoops() {
+    _loopCount = 0;
+    notifyListeners();
+  }
+
+  void setMaxLoops(int count) {
+    _maxLoops = count;
+    notifyListeners();
+  }
+
+  void setLiveCompareActive(bool active) {
+    _isLiveCompareActive = active;
+    notifyListeners();
+  }
+
+  // Game Methods
+  void toggleLyricsGame() {
+    _showLyricsGame = !_showLyricsGame;
+    if (_showLyricsGame) {
+      resetGameState();
+    }
+    notifyListeners();
+  }
+
+  void resetGameState() {
+    _gameScore = 0;
+    _gameCorrect = 0;
+    _gameTotal = 0;
+    _currentGameQuestionIndex = 0;
+    notifyListeners();
+  }
+
+  void submitGameAnswer(bool isCorrect) {
+    _gameTotal++;
+    if (isCorrect) {
+      _gameCorrect++;
+      _gameScore += 10;
+    }
+    _currentGameQuestionIndex++;
+    notifyListeners();
+  }
   
+  // Visual State
+  final List<({int sectionIndex, int segmentIndex, String text, LyricSegment segment})> _visualSegments = [];
+  final Map<int, int> _audioToVisualMap = {}; // GlobalAudioIndex -> VisualListIndex
+
+  List<({int sectionIndex, int segmentIndex, String text, LyricSegment segment})> get visualSegments => _visualSegments;
+
+
+  
+  // Get Visual Index for a given Global Audio Index
+  int? getVisualIndexForAudio(int globalAudioIndex) {
+    if (globalAudioIndex < 0) return null;
+    return _audioToVisualMap[globalAudioIndex];
+  }
+
   void _buildSegmentMapping() {
     if (_currentHymn == null) return;
     
@@ -144,6 +243,81 @@ class HymnDetailViewModel extends ChangeNotifier {
       }
       
       _segmentMapping[sectionIdx] = segmentMap;
+    }
+    
+    _buildVisualSegments();
+  }
+  
+  void _buildVisualSegments() {
+    _visualSegments.clear();
+    _audioToVisualMap.clear();
+    
+    if (_currentHymn == null) return;
+    
+    final allAudioSegments = allSegments;
+    
+    // 1. Determine "Short" vs "Long"
+    // Heuristic: If > 1 section AND total segments > 10, treat as Long.
+    // Or if explicitly requested "First poem lyrics" -> Section 0.
+    final bool isLong = _currentHymn!.sections.length > 1 && allAudioSegments.length > 10;
+    
+    // 2. Build Visual List
+    if (isLong) {
+      // Add only first section segments
+      // Or "Header + First Poem". We assume Section 0 is the "First Poem" / Main Stanza.
+      // We iterate through ALL segments, but only ADD unique text from the start.
+      // Actually, user said: "list... header and first poem lyrics, the rest use the first melody".
+      // This supports: Show Section 0.
+      
+      final firstSectionSegments = getSegmentsForSection(0);
+      for (int i = 0; i < firstSectionSegments.length; i++) {
+        _visualSegments.add((
+          sectionIndex: 0,
+          segmentIndex: i,
+          text: firstSectionSegments[i].text,
+          segment: firstSectionSegments[i]
+        ));
+      }
+    } else {
+      // Short: List all
+      _visualSegments.addAll(allAudioSegments);
+    }
+    
+    // 3. Build Mapping (Audio -> Visual)
+    // For every audio segment, find the matching visual segment.
+    for (int i = 0; i < allAudioSegments.length; i++) {
+      final audioSeg = allAudioSegments[i];
+      
+      // Strategy: Find visual segment with same text
+      // Priority: 
+      // 1. Exact visual timestamp match (it's the same segment)
+      // 2. Text match (it's a repeat)
+      
+      int matchIndex = -1;
+      
+      // Check for identity first
+      for (int v = 0; v < _visualSegments.length; v++) {
+        if (_visualSegments[v].sectionIndex == audioSeg.sectionIndex && 
+            _visualSegments[v].segmentIndex == audioSeg.segmentIndex) {
+          matchIndex = v;
+          break;
+        }
+      }
+      
+      // If not identical (e.g. truncated), look for text match
+      if (matchIndex == -1) {
+         for (int v = 0; v < _visualSegments.length; v++) {
+           // Normalize text for comparison (trim, ignore case/punctuation if needed)
+           if (_visualSegments[v].text.trim() == audioSeg.text.trim()) {
+             matchIndex = v;
+             break; // Map to the FIRST occurrence
+           }
+         }
+      }
+      
+      if (matchIndex != -1) {
+        _audioToVisualMap[i] = matchIndex;
+      }
     }
   }
   
@@ -340,7 +514,17 @@ class HymnDetailViewModel extends ChangeNotifier {
       
       if (audioUrl != null) {
         try {
-          await _mainAudioPlayer.play(UrlSource(audioUrl));
+          if (kIsWeb) {
+            try {
+              final response = await ApiClient.fetchAudioBytes(audioUrl);
+              await _mainAudioPlayer.play(BytesSource(response.bodyBytes));
+            } catch (e) {
+              debugPrint('HymnDetailViewModel playSegment fallback to UrlSource: $e');
+              await _mainAudioPlayer.play(UrlSource(audioUrl));
+            }
+          } else {
+            await _mainAudioPlayer.play(UrlSource(audioUrl));
+          }
           await _mainAudioPlayer.seek(Duration(milliseconds: segment.startMs));
           
           final globalIndex = getGlobalIndex(sectionIndex, segmentIndex);

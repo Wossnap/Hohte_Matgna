@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
 
+/// A centered loading indicator with an optional message.
+///
+/// Used to indicate that a process is active (e.g., fetching data).
 class AppLoader extends StatelessWidget {
   final String? message;
   

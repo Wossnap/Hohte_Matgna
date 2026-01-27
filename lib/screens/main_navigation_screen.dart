@@ -5,6 +5,9 @@ import 'home/home_screen.dart';
 import 'profile_screen.dart';
 import '../core/theme/app_colors.dart';
 
+/// The main shell of the application, handling bottom navigation.
+///
+/// Switches between Home, History, and Profile screens.
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 

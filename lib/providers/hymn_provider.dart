@@ -1,4 +1,5 @@
 /// Provider for fetching and managing the list of hymns, including filtering and searching.
+library;
 import 'package:flutter/material.dart';
 import '../models/hymn_model.dart';
 import '../models/pagination_model.dart';
@@ -9,11 +10,13 @@ class HymnProvider with ChangeNotifier {
 
   // Data
   List<Hymn> _hymns = [];
+  List<Hymn> _topHymns = [];
   Pagination<Hymn>? _pagination;
 
   // State
   bool _isLoading = false;
   bool _loadingMore = false;
+  bool _loadingTop = false;
   String? _error;
 
   // Filters
@@ -24,9 +27,11 @@ class HymnProvider with ChangeNotifier {
 
   // Getters
   List<Hymn> get hymns => _hymns;
+  List<Hymn> get topHymns => _topHymns;
   Pagination<Hymn>? get pagination => _pagination;
   bool get isLoading => _isLoading;
   bool get loadingMore => _loadingMore;
+  bool get loadingTop => _loadingTop;
   String? get error => _error;
   bool get hasMore => _pagination?.hasNextPage ?? false;
 
@@ -37,6 +42,7 @@ class HymnProvider with ChangeNotifier {
 
   HymnProvider() {
     loadHymns();
+    loadTopHymns();
   }
 
   /// Load hymns (initial load or load more)
@@ -50,6 +56,7 @@ class HymnProvider with ChangeNotifier {
         _loadingMore = true;
       } else {
         _isLoading = true;
+        _pagination = null; // Clear pagination on fresh load
       }
 
       notifyListeners();
@@ -82,6 +89,27 @@ class HymnProvider with ChangeNotifier {
     } finally {
       _isLoading = false;
       _loadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  /// Load top hymns for Daily Focus slideshow
+  Future<void> loadTopHymns() async {
+    try {
+      _loadingTop = true;
+      notifyListeners();
+
+      // Fetch top hymns by sorting by practices or plays desc
+      final Pagination<Hymn> result = await _hymnService.getHymns(
+        sort: 'practices_desc', // Assuming this sort exists on backend
+        page: 1,
+      );
+
+      _topHymns = result.data.take(5).toList(); // Take top 5 for slideshow
+    } catch (e) {
+      debugPrint('Error loading top hymns: $e');
+    } finally {
+      _loadingTop = false;
       notifyListeners();
     }
   }

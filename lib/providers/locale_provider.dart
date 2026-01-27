@@ -1,4 +1,5 @@
 /// Provider for managing app localization and language switching.
+library;
 import 'package:flutter/material.dart';
 
 enum AppLanguage { english, amharic }
@@ -8,12 +9,14 @@ class LocaleProvider with ChangeNotifier {
 
   AppLanguage get language => _language;
 
+  /// Updates the application language.
   void setLanguage(AppLanguage lang) {
     if (_language == lang) return;
     _language = lang;
     notifyListeners();
   }
 
+  /// Translates a localized string key to the current language.
   String translate(String key) {
     if (_language == AppLanguage.english) {
       return _en[key] ?? key;

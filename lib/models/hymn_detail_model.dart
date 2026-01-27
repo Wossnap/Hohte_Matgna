@@ -1,4 +1,5 @@
 /// Comprehensive model for hymn details, including the base hymn and its split sections.
+library;
 import 'hymn_model.dart';
 import 'section_model.dart';
 

@@ -40,7 +40,9 @@ class _RecordingWidgetState extends State<RecordingWidget> {
   }
 
   Future<bool> _requestMicrophonePermission() async {
-    if (kIsWeb) return true;
+    if (kIsWeb) {
+      return await _audioRecorder.hasPermission();
+    }
     final status = await Permission.microphone.request();
     return status.isGranted;
   }
@@ -72,6 +74,7 @@ class _RecordingWidgetState extends State<RecordingWidget> {
           encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.pcm16bits,
           bitRate: 128000,
           sampleRate: 44100,
+          numChannels: 1, // Mono is usually better for analysis
         ),
         path: filePath ?? '',
       );

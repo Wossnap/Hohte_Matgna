@@ -42,7 +42,9 @@ class _PracticeControlsState extends State<PracticeControls> {
   }
 
   Future<bool> _checkMicrophonePermission() async {
-    if (kIsWeb) return true;
+    if (kIsWeb) {
+      return await _audioRecorder.hasPermission();
+    }
     final status = await Permission.microphone.status;
     if (status.isGranted) return true;
     
@@ -70,6 +72,7 @@ class _PracticeControlsState extends State<PracticeControls> {
           encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.pcm16bits,
           sampleRate: 44100,
           bitRate: 128000,
+          numChannels: 1, // Mono is better for analysis
         ),
         path: filePath ?? '',
       );

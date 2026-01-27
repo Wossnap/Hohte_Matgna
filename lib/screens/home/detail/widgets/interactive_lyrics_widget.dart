@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../../../models/section_model.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/api/api_client.dart';
 
 class InteractiveLyricsWidget extends StatefulWidget {
   final AudioPlayer audioPlayer;
@@ -109,7 +111,18 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
 
         // Stop current playback before switching source
         await widget.audioPlayer.stop();
-        await widget.audioPlayer.play(UrlSource(section.audioUrl!));
+        
+        if (kIsWeb) {
+          try {
+            final response = await ApiClient.fetchAudioBytes(section.audioUrl!);
+            await widget.audioPlayer.play(BytesSource(response.bodyBytes));
+          } catch (e) {
+            debugPrint('InteractiveLyrics fallback to UrlSource: $e');
+            await widget.audioPlayer.play(UrlSource(section.audioUrl!));
+          }
+        } else {
+          await widget.audioPlayer.play(UrlSource(section.audioUrl!));
+        }
         
         if (startMs > 0) {
           await widget.audioPlayer.seek(Duration(milliseconds: startMs));

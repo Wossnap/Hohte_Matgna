@@ -1,4 +1,5 @@
 /// Model representing a section of a hymn, containing multiple lyric segments.
+library;
 import 'lyric_segment_model.dart';
 
 class Section {

@@ -1,3 +1,7 @@
+/// Holds constant values used across the application.
+///
+/// This includes API configuration, storage keys, validation rules,
+/// and static messages.
 class AppConstants {
   // API Configuration
   static const String apiBaseUrl = 'https://hohte-matgna.batelew.com/api';

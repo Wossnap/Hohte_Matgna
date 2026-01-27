@@ -1,4 +1,5 @@
 /// Provider for fetching and caching static metadata like categories and scales.
+library;
 import 'package:flutter/material.dart';
 import '../models/category_model.dart';
 import '../models/scale_model.dart';
@@ -54,6 +55,7 @@ class MetadataProvider with ChangeNotifier {
     }
   }
 
+  /// Retrieves a category by its [id].
   Category? getCategoryById(int? id) {
     if (id == null) return null;
     try {
@@ -63,6 +65,7 @@ class MetadataProvider with ChangeNotifier {
     }
   }
 
+  /// Retrieves a scale by its [id].
   Scale? getScaleById(int? id) {
     if (id == null) return null;
     try {
@@ -72,6 +75,7 @@ class MetadataProvider with ChangeNotifier {
     }
   }
 
+  /// Refreshes metadata from the backend.
   void refresh() {
     _loadMetadata();
   }

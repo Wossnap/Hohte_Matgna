@@ -207,82 +207,59 @@ class _InteractiveLyricsContainerState extends State<InteractiveLyricsContainer>
   }
 
   Widget _buildAllSegments(HymnDetailViewModel viewModel, AudioSyncViewModel audioSync) {
-    final children = <Widget>[];
+    // Flatten all segments into a single list
+    final allSegs = viewModel.visualSegments;
     
-    for (int sectionIndex = 0; sectionIndex < widget.sections.length; sectionIndex++) {
-      final section = widget.sections[sectionIndex];
-      final sectionSegments = viewModel.getSegmentsForSection(sectionIndex);
-      
-      if (sectionSegments.isEmpty) continue;
-      
-      // Section header
-      children.add(
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              const Icon(Icons.music_note, color: Colors.blue, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                section.name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.blue,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${sectionSegments.length} segments',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      );
-      
-      // Segments in this section
-      for (int segmentIndex = 0; segmentIndex < sectionSegments.length; segmentIndex++) {
-        final segment = sectionSegments[segmentIndex];
-        final isCurrent = _isSegmentCurrent(viewModel, audioSync, sectionIndex, segmentIndex);
-        final isCompleted = _isSegmentCompleted(viewModel, audioSync, sectionIndex, segmentIndex);
-        final globalIndex = viewModel.getGlobalIndex(sectionIndex, segmentIndex) ?? -1;
-        
-        // Assign/Reuse key for scrolling
-        final key = _segmentKeys.putIfAbsent(globalIndex, () => GlobalKey());
-
-        children.add(
-          LyricSegmentWidget(
-            key: key,
-            text: segment.text,
-            startTime: segment.startMs,
-            endTime: segment.endMs,
-            isPlaying: isCurrent,
-            isCompleted: isCompleted,
-            onTap: () {
-              viewModel.playSegment(sectionIndex, segmentIndex);
-              widget.onSegmentTap?.call(sectionIndex, segmentIndex);
-            },
-          ),
-        );
-      }
-      
-      // Divider between sections (except last)
-      if (sectionIndex < widget.sections.length - 1) {
-        children.add(const Divider(height: 20, thickness: 1));
-      }
-    }
-    
-    if (children.isEmpty) {
+    if (allSegs.isEmpty) {
       return const Center(
         child: Text('No lyrics segments available'),
       );
     }
     
-    return ListView(
+    return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.all(8),
-      children: children,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      itemCount: allSegs.length,
+      itemBuilder: (context, index) {
+        final item = allSegs[index];
+        
+        // Use mapping logic for current segment highlight
+        final currentAudioIndex = audioSync.currentSegmentIndex;
+        final activeVisualIndex = currentAudioIndex != null 
+            ? viewModel.getVisualIndexForAudio(currentAudioIndex) 
+            : null;
+            
+        final isCurrent = index == activeVisualIndex;
+        
+        // Completion logic specific to visual segment
+        final isCompleted = index < (activeVisualIndex ?? -1);
+
+        // Assign/Reuse key for scrolling
+        final key = _segmentKeys.putIfAbsent(index, () => GlobalKey());
+
+        // Auto-scroll when active
+        if (isCurrent) {
+            _scrollToActiveSegment(index);
+        }
+
+        return Column(
+          key: key,
+          children: [
+            LyricSegmentWidget(
+              text: item.segment.text,
+              startTime: item.segment.startMs,
+              endTime: item.segment.endMs,
+              isPlaying: isCurrent,
+              isCompleted: isCompleted,
+              onTap: () {
+                viewModel.playSegment(item.sectionIndex, item.segmentIndex);
+                widget.onSegmentTap?.call(item.sectionIndex, item.segmentIndex);
+              },
+            ),
+            const SizedBox(height: 12), // Spacing between boxes
+          ],
+        );
+      },
     );
   }
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// A text input field designed for authentication forms.
+///
+/// Includes a label, hint text, and specific styling for the auth context.
 class AuthInput extends StatelessWidget {
   final String label;
   final String hint;

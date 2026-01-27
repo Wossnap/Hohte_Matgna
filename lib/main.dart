@@ -9,7 +9,7 @@ import 'screens/splash_screen.dart';
 // auth_service not used here; AuthProvider handles auth checks
 
 // Login screen import
-import 'screens/login_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'providers/locale_provider.dart';
 

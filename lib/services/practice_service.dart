@@ -7,6 +7,10 @@ import '../core/api/api_endpoints.dart';
 import '../models/hymn_detail_model.dart';
 import '../models/attempt_model.dart';
 
+/// Service responsible for handling practice-related operations.
+///
+/// This includes fetching hymn details for practice, managing play/practice counts,
+/// fetching audio breakpoints, and submitting audio for comparison.
 class PracticeService {
   /// Get complete hymn details with sections for practice mode
   Future<HymnDetail> getHymnDetail(int hymnId) async {
@@ -96,14 +100,24 @@ class PracticeService {
 
     if (kIsWeb) {
       // On Web, audioFilePath is a Blob URL
-      final response = await http.get(Uri.parse(audioFilePath));
-      if (response.statusCode != 200) {
-        throw Exception('Failed to fetch recorded audio bytes');
+      http.Response response;
+      try {
+        response = await http.get(Uri.parse(audioFilePath));
+        if (response.statusCode != 200) {
+          throw Exception('Failed to fetch recorded audio bytes: ${response.statusCode}');
+        }
+      } catch (e) {
+        throw Exception('CORS or Network error fetching recorded Blob. Please check server configuration. Error: $e');
       }
+      
+      // Determine content type from headers or default to webm
+      final contentType = response.headers['content-type'] ?? 'audio/webm';
+      final extension = contentType.contains('wav') ? 'wav' : 'webm';
+      
       audioFile = http.MultipartFile.fromBytes(
         'audio',
         response.bodyBytes,
-        filename: 'recording.webm', // Record package defaults to webm on web
+        filename: 'recording.$extension',
       );
     } else {
       audioFile = await http.MultipartFile.fromPath(

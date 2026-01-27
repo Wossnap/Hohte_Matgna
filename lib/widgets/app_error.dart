@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 
+/// A generic error widget to display error messages with an optional retry button.
+///
+/// Use this widget when a screen or section fails to load content.
 class AppError extends StatelessWidget {
   final String message;
   final VoidCallback? onRetry;

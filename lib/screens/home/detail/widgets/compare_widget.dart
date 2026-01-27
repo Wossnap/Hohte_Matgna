@@ -1,23 +1,30 @@
-
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:mobile/core/theme/app_colors.dart';
 import 'package:mobile/core/theme/app_text_styles.dart';
 import 'package:mobile/providers/practice_provider.dart';
-import 'package:mobile/models/attempt_model.dart';
+import 'package:mobile/core/api/api_client.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'live_compare_widget.dart';
+import '../../../../../models/attempt_model.dart';
 
 class CompareWidget extends StatefulWidget {
   final int hymnId;
   final String playableType;
+  final int? playableId; // Optional section ID
+  final String label;
 
   const CompareWidget({
     super.key,
     required this.hymnId,
     required this.playableType,
+    this.playableId,
+    this.label = 'Compare with reference',
   });
 
   @override
@@ -26,297 +33,565 @@ class CompareWidget extends StatefulWidget {
 
 class _CompareWidgetState extends State<CompareWidget> {
   final AudioRecorder _audioRecorder = AudioRecorder();
+  final AudioPlayer _playbackPlayer = AudioPlayer();
+  final AudioPlayer _helperPlayer = AudioPlayer(); 
+  
+  // State
   bool _isRecording = false;
+  bool _isPaused = false;
+  bool _isSubmitting = false;
+  int _countdown = 0;
+  Timer? _countdownTimer;
+  Duration _maxDuration = Duration.zero;
+  Duration _elapsed = Duration.zero;
+  Timer? _elapsedTimer;
+  
   String? _recordedFilePath;
-  Duration _recordingDuration = Duration.zero;
-  DateTime? _recordingStartTime;
+  bool _isPlayingPlayback = false;
+  
+  // Scoring State
+  String? _errorMessage;
+  String? _successMessage;
+  Attempt? _latestAttempt;
+  String _algorithm = 'default';
+  
+  // UI State
+  bool _showKeys = false;
+  bool _showNotes = false;
+  
+  List<double> _breakpoints = [];
+  bool _isLiveActive = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _playbackPlayer.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _isPlayingPlayback = false);
+    });
+    _loadBreakpoints();
+  }
+
+  Future<void> _loadBreakpoints() async {
+    final provider = Provider.of<PracticeProvider>(context, listen: false);
+    try {
+      final pts = await provider.getBreakpoints(
+        playableType: widget.playableType,
+        playableId: widget.playableId ?? widget.hymnId,
+      );
+      if (mounted) setState(() => _breakpoints = pts);
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
     _audioRecorder.dispose();
+    _playbackPlayer.dispose();
+    _helperPlayer.dispose();
+    _countdownTimer?.cancel();
+    _elapsedTimer?.cancel();
     super.dispose();
   }
 
-  Future<bool> _requestMicrophonePermission() async {
-    if (kIsWeb) return true; // Browser handles this on start()
-    final status = await Permission.microphone.request();
-    return status.isGranted;
-  }
+  Future<void> _startFlow() async {
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+      _latestAttempt = null;
+      _countdown = 3;
+    });
 
-  Future<void> _handleRecordPress() async {
-    if (_isRecording) {
-      await _stopRecording();
-    } else {
-      await _startRecording();
-    }
-  }
-
-  Future<void> _startRecording() async {
-    final hasPermission = await _requestMicrophonePermission();
-    if (!hasPermission) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Microphone permission is required to record audio'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
       }
-      return;
-    }
+      setState(() {
+        if (_countdown > 0) {
+          _countdown--;
+        } else {
+          timer.cancel();
+          _countdownTimer = null;
+          _beginRecording();
+        }
+      });
+    });
+  }
+
+  Future<void> _beginRecording() async {
+    final status = await Permission.microphone.request();
+    if (!mounted || !status.isGranted) return;
 
     try {
-      String? filePath;
-      
-      if (!kIsWeb) {
-        final tempDir = await getTemporaryDirectory();
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        filePath = '${tempDir.path}/recording_$timestamp.wav';
+      final provider = Provider.of<PracticeProvider>(context, listen: false);
+      final refUrl = widget.playableType == 'hymn' 
+          ? provider.currentHymn?.hymn.audioUrl 
+          : provider.currentHymn?.sections.where((s) => s.id == widget.playableId).firstOrNull?.audioUrl;
+
+      if (refUrl == null) {
+        setState(() => _errorMessage = 'Reference audio not found');
+        return;
       }
 
+      // Load reference to get duration if not already known
+      if (kIsWeb) {
+        try {
+          final response = await ApiClient.fetchAudioBytes(refUrl);
+          await _helperPlayer.setSource(BytesSource(response.bodyBytes));
+        } catch (e) {
+          await _helperPlayer.setSource(UrlSource(refUrl));
+        }
+      } else {
+        await _helperPlayer.setSource(UrlSource(refUrl));
+      }
+      
+      _maxDuration = await _helperPlayer.getDuration() ?? const Duration(seconds: 30);
+
+      String? path;
+      if (!kIsWeb) {
+        final tempDir = await getTemporaryDirectory();
+        path = '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      }
+      
       await _audioRecorder.start(
         RecordConfig(
-          encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.pcm16bits,
+          encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc,
+          numChannels: 1,
+          sampleRate: 48000,
           bitRate: 128000,
-          sampleRate: 44100,
         ),
-        path: filePath ?? '',
+        path: path ?? '',
       );
 
       setState(() {
         _isRecording = true;
-        _recordingStartTime = DateTime.now();
+        _isPaused = false;
         _recordedFilePath = null;
+        _elapsed = Duration.zero;
       });
 
-      _updateRecordingDuration();
+      _startTimer();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not start recording: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+      setState(() => _errorMessage = 'Failed to start recording: $e');
     }
   }
 
-  void _updateRecordingDuration() {
-    if (!_isRecording) return;
-    Future.delayed(const Duration(seconds: 1), () {
-      if (!mounted || !_isRecording) return;
-      setState(() {
-        _recordingDuration = DateTime.now().difference(_recordingStartTime!);
-      });
-      _updateRecordingDuration();
+  void _startTimer() {
+    _elapsedTimer?.cancel();
+    _elapsedTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (!_isPaused) {
+        setState(() {
+          _elapsed += const Duration(milliseconds: 100);
+          if (_elapsed >= _maxDuration) {
+            _stopRecording();
+          }
+        });
+      }
+    });
+  }
+
+  Future<void> _pauseRecording() async {
+    if (!_isRecording || _isPaused) return;
+    await _audioRecorder.pause();
+    setState(() => _isPaused = true);
+  }
+
+  Future<void> _resumeRecording() async {
+    if (!_isRecording || !_isPaused) return;
+    await _audioRecorder.resume();
+    setState(() => _isPaused = false);
+  }
+
+  Future<void> _cancelRecording() async {
+    _elapsedTimer?.cancel();
+    _countdownTimer?.cancel();
+    await _audioRecorder.stop();
+    setState(() {
+      _isRecording = false;
+      _isPaused = false;
+      _countdown = 0;
+      _elapsed = Duration.zero;
+      _errorMessage = 'Recording cancelled';
     });
   }
 
   Future<void> _stopRecording() async {
-    try {
-      final path = await _audioRecorder.stop();
-      setState(() {
-        _isRecording = false;
-        _recordedFilePath = path;
-        _recordingDuration = Duration.zero;
-      });
-
-      if (path != null) {
-        _submitForComparison(); // Auto submit
+    _elapsedTimer?.cancel();
+    final path = await _audioRecorder.stop();
+    setState(() {
+      _isRecording = false;
+      _isPaused = false;
+      _recordedFilePath = path;
+    });
+    if (path != null) {
+      if (mounted) {
+        _submit(path);
       }
-    } catch (e) {
-      debugPrint('Error stopping recording: $e');
-      setState(() => _isRecording = false);
     }
   }
 
-  Future<void> _submitForComparison() async {
-    if (_recordedFilePath == null) return;
+  Future<void> _submit(String path) async {
+    if (!mounted) return;
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
     final provider = Provider.of<PracticeProvider>(context, listen: false);
-
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Analyzing performance...'),
-            ],
-          ),
-        ),
+    try {
+      final attempt = await provider.submitAndPollComparison(
+        audioFilePath: path,
+        playableType: widget.playableType,
+        playableId: widget.playableId ?? widget.hymnId,
+        algorithm: _algorithm,
       );
-    }
 
-    final attempt = await provider.submitAndPollComparison(
-      audioFilePath: _recordedFilePath!,
-      playableType: widget.playableType,
-      playableId: widget.hymnId,
-    );
-
-    if (mounted) Navigator.of(context).pop();
-
-    if (mounted && attempt != null) {
-      _showResultDialog(attempt);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.comparisonError ?? 'Analysis failed'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      if (!mounted) return;
+      setState(() {
+        _latestAttempt = attempt;
+        _successMessage = attempt != null ? 'Similarity Score: ${attempt.score?.toStringAsFixed(1)}%' : null;
+        _isSubmitting = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Comparison failed: $e';
+        _isSubmitting = false;
+      });
     }
   }
-  
-  void _showResultDialog(Attempt attempt) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.analytics, color: AppColors.primary),
-            SizedBox(width: 8),
-            Text('Comparison Result'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (attempt.score != null) ...[
-              Center(
-                child: Text(
-                  '${attempt.score!.toStringAsFixed(1)}%',
-                  style: AppTextStyles.headerLarge.copyWith(
-                    color: _getScoreColor(attempt.score!),
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(child: Text(_getScoreLabel(attempt.score!), style: AppTextStyles.bodyMedium)),
-            ],
-            if (attempt.feedback != null) ...[
-              const SizedBox(height: 16),
-              Text('Feedback:', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
-              Text(attempt.feedback!, style: AppTextStyles.bodyMedium),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close')),
-        ],
-      ),
-    );
-  }
 
-  Color _getScoreColor(double score) => score >= 80 ? AppColors.success : (score >= 60 ? AppColors.warning : AppColors.error);
-  String _getScoreLabel(double score) => score >= 80 ? 'Great Job!' : (score >= 60 ? 'Keep Practicing' : 'Needs Improvement');
+  List<String> _extractKeys(dynamic source) {
+    if (source == null) return [];
+    if (source is Map) {
+      final candidates = [
+        source['keys'],
+        source['reference_keys'],
+        source['recorded_keys'],
+      ];
+      for (var c in candidates) {
+        if (c is List) return c.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      }
+    }
+    return [];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<PracticeProvider>(context);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    final refUrl = widget.playableType == 'hymn' 
+          ? provider.currentHymn?.hymn.audioUrl 
+          : provider.currentHymn?.sections.where((s) => s.id == widget.playableId).firstOrNull?.audioUrl;
+
     return Container(
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.greyCard,
+        color: isDark ? Colors.grey.shade900 : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header & Algorithm Selector
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Compare with reference',
-                style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w800),
+                ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                 ),
-                child: Row(
-                  children: [
-                    Text('Default', style: AppTextStyles.caption),
-                    Icon(Icons.keyboard_arrow_down, size: 16),
-                  ],
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _algorithm,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    items: const [
+                      DropdownMenuItem(value: 'default', child: Text('Default')),
+                      DropdownMenuItem(value: 'harmonic', child: Text('Harmonic')),
+                    ],
+                    onChanged: _isRecording || _isSubmitting ? null : (val) => setState(() => _algorithm = val!),
+                    isDense: true,
+                  ),
                 ),
               ),
             ],
           ),
-          
           const SizedBox(height: 20),
-          
-          // Record & Compare Button
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _handleRecordPress,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isRecording ? AppColors.warning : AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                elevation: 0,
+
+          // Action Buttons
+          if (!_isRecording && _countdown == 0 && !_isSubmitting)
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: _startFlow,
+                icon: const Icon(Icons.mic_rounded),
+                label: const Text('Start Recording'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
+            ),
+
+          if (_countdown > 0)
+            Center(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                   Text(
-                     _isRecording ? 'Stop Recording' : 'Record & Compare',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    'Get Ready!',
+                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
-                  if (_isRecording)
-                    Text(
-                      '${_recordingDuration.inSeconds}s',
-                      style: const TextStyle(fontSize: 12),
-                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$_countdown',
+                    style: AppTextStyles.headerLarge.copyWith(color: AppColors.primary, fontSize: 48),
+                  ),
                 ],
               ),
             ),
-          ),
-          
-          const SizedBox(height: 12),
-          
-          // Live Compare Button
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                   height: 48,
-                   child: ElevatedButton(
-                    onPressed: null, // Disabled as per design
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFBC6C6C), // Faded Red from image
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
+
+          if (_isRecording)
+            Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('RECORDING', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 12)),
+                      ],
                     ),
-                    child: const Text(
-                      'Start Live Compare',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    Text(
+                      '${(_elapsed.inMilliseconds / 1000).toStringAsFixed(1)}s / ${(_maxDuration.inMilliseconds / 1000).toStringAsFixed(1)}s',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
-                  ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Record first to enable live compare',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isPaused ? _resumeRecording : _pauseRecording,
+                        icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+                        label: Text(_isPaused ? 'Resume' : 'Pause'),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _stopRecording,
+                        icon: const Icon(Icons.stop),
+                        label: const Text('End'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _cancelRecording,
+                  child: const Text('Cancel Request', style: TextStyle(color: Colors.grey)),
+                ),
+              ],
+            ),
+
+          if (_isSubmitting)
+            const Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 12),
+                  Text('Analyzing your performance...', style: TextStyle(fontWeight: FontWeight.bold)),
+                ],
               ),
-            ],
-          ),
+            ),
+
+          // Feedback Messages
+          if (_errorMessage != null)
+            Container(
+              margin: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 12))),
+                ],
+              ),
+            ),
+
+          if (_successMessage != null)
+            Container(
+              margin: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, color: AppColors.success, size: 16),
+                  const SizedBox(width: 8),
+                  Text(_successMessage!, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+
+          // Analysis Display (matching Vue logic)
+          if (_latestAttempt != null && _latestAttempt!.analysis != null) ...[
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 12),
+            
+            _buildInfoRow('Reference Duration', _latestAttempt!.analysis!['reference_audio']?['duration_formatted'] ?? 'N/A'),
+            _buildInfoRow('Recorded Duration', _latestAttempt!.analysis!['recorded_audio']?['duration_formatted'] ?? 'N/A'),
+
+            // Keys Toggle
+            _buildAnalysisToggle(
+              title: _showKeys ? 'Hide keys' : 'Show keys',
+              isActive: _showKeys,
+              onTap: () => setState(() => _showKeys = !_showKeys),
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSubInfo('Reference keys', _extractKeys(_latestAttempt!.analysis!['reference_audio'] ?? _latestAttempt!.analysis).join(', ')),
+                  _buildSubInfo('Recorded keys', _extractKeys(_latestAttempt!.analysis!['recorded_audio'] ?? _latestAttempt!.analysis).join(', ')),
+                ],
+              ),
+            ),
+
+            // Notes Toggle
+            _buildAnalysisToggle(
+              title: _showNotes ? 'Hide note sequences' : 'Show note sequences',
+              isActive: _showNotes,
+              onTap: () => setState(() => _showNotes = !_showNotes),
+              content: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSubInfo('Reference notes', (_latestAttempt!.analysis!['note_sequences']?['reference'] as List?)?.join(', ') ?? 'None'),
+                  _buildSubInfo('Recorded notes', (_latestAttempt!.analysis!['note_sequences']?['recorded'] as List?)?.join(', ') ?? 'None'),
+                ],
+              ),
+            ),
+          ],
+
+          // Playback & Live Compare
+          if (_recordedFilePath != null && !_isLiveActive && !_isRecording) ...[
+            const SizedBox(height: 24),
+            Text('Playback Recording', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton.filled(
+                  onPressed: () async {
+                    if (_isPlayingPlayback) {
+                      await _playbackPlayer.stop();
+                      setState(() => _isPlayingPlayback = false);
+                    } else {
+                      if (kIsWeb) {
+                        await _playbackPlayer.play(UrlSource(_recordedFilePath!));
+                      } else {
+                        await _playbackPlayer.play(DeviceFileSource(_recordedFilePath!));
+                      }
+                      setState(() => _isPlayingPlayback = true);
+                    }
+                  },
+                  icon: Icon(_isPlayingPlayback ? Icons.stop : Icons.play_arrow),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(child: LinearProgressIndicator(value: 0)),
+              ],
+            ),
+          ],
+
+          if (_recordedFilePath != null && refUrl != null && _breakpoints.isNotEmpty && !_isRecording) ...[
+            const SizedBox(height: 20),
+            LiveCompareWidget(
+              referenceUrl: refUrl,
+              recordedFilePath: _recordedFilePath!,
+              breakpoints: _breakpoints,
+              onActiveChange: (active) => setState(() => _isLiveActive = active),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text('$label: ', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          Text(value, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnalysisToggle({required String title, required bool isActive, required VoidCallback onTap, required Widget content}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextButton(
+          onPressed: onTap,
+          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+          child: Text(title, style: TextStyle(fontSize: 12, color: AppColors.primary, decoration: TextDecoration.underline)),
+        ),
+        if (isActive) Padding(padding: const EdgeInsets.only(top: 8, bottom: 8), child: content),
+      ],
+    );
+  }
+
+  Widget _buildSubInfo(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+          children: [
+            TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+            TextSpan(text: value.isEmpty ? 'None' : value),
+          ],
+        ),
       ),
     );
   }
 }
+

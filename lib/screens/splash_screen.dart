@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
 
+/// The initial splash screen displayed while the app initializes.
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
@@ -12,7 +13,7 @@ class SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // You can add your logo here
+            // we will add our logo here
             Container(
               width: 120,
               height: 120,

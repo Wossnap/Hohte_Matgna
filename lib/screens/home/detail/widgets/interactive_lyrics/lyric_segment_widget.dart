@@ -1,5 +1,7 @@
 // lib/screens/home/detail/widgets/interactive_lyrics/lyric_segment_widget.dart
 import 'package:flutter/material.dart';
+import 'package:mobile/core/theme/app_colors.dart';
+import 'package:mobile/core/theme/app_text_styles.dart';
 
 class LyricSegmentWidget extends StatefulWidget {
   final String text;
@@ -35,12 +37,12 @@ class _LyricSegmentWidgetState extends State<LyricSegmentWidget>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 1500), // Slower, smoother pulse
       vsync: this,
     );
     
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     
     if (widget.isPlaying) {
@@ -55,7 +57,7 @@ class _LyricSegmentWidgetState extends State<LyricSegmentWidget>
       _animationController.repeat(reverse: true);
     } else if (!widget.isPlaying && oldWidget.isPlaying) {
       _animationController.stop();
-      _animationController.value = 0;
+      _animationController.animateTo(0, duration: const Duration(milliseconds: 300));
     }
   }
 
@@ -66,10 +68,11 @@ class _LyricSegmentWidgetState extends State<LyricSegmentWidget>
   }
 
   String _formatTime(int milliseconds) {
+    // Show MM:SS or M:SS
     final seconds = (milliseconds / 1000).floor();
     final minutes = (seconds / 60).floor();
     final remainingSeconds = seconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -83,65 +86,67 @@ class _LyricSegmentWidgetState extends State<LyricSegmentWidget>
         child: AnimatedBuilder(
           animation: _animationController,
           builder: (context, child) {
+            final isHighlight = widget.isPlaying || _isHovered;
+            
             return Transform.scale(
-              scale: _scaleAnimation.value,
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                padding: const EdgeInsets.all(16),
+              scale: isHighlight && widget.isPlaying ? _scaleAnimation.value : (isHighlight ? 1.01 : 1.0),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                 decoration: BoxDecoration(
-                  color: _getBackgroundColor(),
+                  color: isHighlight ? AppColors.secondary.withValues(alpha: 0.08) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _getBorderColor(),
-                    width: widget.isPlaying ? 2 : 1,
+                    color: isHighlight ? AppColors.secondary : Colors.grey.withValues(alpha: 0.2),
+                    width: isHighlight ? 1.5 : 1,
                   ),
-                  boxShadow: _getBoxShadow(),
+                  boxShadow: isHighlight ? [
+                    BoxShadow(
+                      color: AppColors.secondary.withValues(alpha: 0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    )
+                  ] : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
+                    )
+                  ],
                 ),
                 child: Row(
                   children: [
-                    // Status indicator
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _getStatusColor(),
-                      ),
-                    ),
+                    // Play indicator
+                    _buildPlayIndicator(isHighlight),
                     const SizedBox(width: 16),
                     
-                    // Time indicator
-                    Text(
-                      _formatTime(widget.startTime),
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    
-                    // Lyric text
+                    // Lyric text and Time
                     Expanded(
-                      child: Text(
-                        widget.text,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: widget.isPlaying ? FontWeight.bold : FontWeight.normal,
-                          color: _getTextColor(),
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.text,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontSize: 16,
+                              fontWeight: isHighlight ? FontWeight.w600 : FontWeight.normal,
+                              color: isHighlight ? AppColors.textPrimary : AppColors.textSecondary,
+                            ),
+                          ),
+                          if (isHighlight) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              _formatTime(widget.startTime),
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.secondary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ]
+                        ],
                       ),
                     ),
-                    
-                    // Play icon or completed check
-                    if (widget.isCompleted)
-                      const Icon(Icons.check_circle, color: Colors.green, size: 24)
-                    else
-                      Icon(
-                        widget.isPlaying ? Icons.equalizer : Icons.play_circle_outline,
-                        color: widget.isPlaying ? Colors.blue : Colors.grey,
-                        size: 24,
-                      ),
                   ],
                 ),
               ),
@@ -152,50 +157,15 @@ class _LyricSegmentWidgetState extends State<LyricSegmentWidget>
     );
   }
 
-  Color _getBackgroundColor() {
-    if (widget.isPlaying) return Colors.blue.withValues(alpha: 0.1);
-    if (widget.isCompleted) return Colors.green.withValues(alpha: 0.1);
-    if (_isHovered) return Colors.grey.withValues(alpha: 0.05);
-    return Colors.transparent;
-  }
-
-  Color _getBorderColor() {
-    if (widget.isPlaying) return Colors.blue;
-    if (widget.isCompleted) return Colors.green;
-    return Colors.grey.shade300;
-  }
-
-  Color _getTextColor() {
-    if (widget.isPlaying) return Colors.blue.shade900;
-    if (widget.isCompleted) return Colors.green.shade800;
-    return Colors.black87;
-  }
-
-  Color _getStatusColor() {
-    if (widget.isPlaying) return Colors.blue;
-    if (widget.isCompleted) return Colors.green;
-    return Colors.grey;
-  }
-
-  List<BoxShadow> _getBoxShadow() {
-    if (widget.isPlaying) {
-      return [
-        BoxShadow(
-          color: Colors.blue.withValues(alpha: 0.3),
-          blurRadius: 10,
-          spreadRadius: 2,
-          offset: const Offset(0, 3),
-        ),
-      ];
-    } else if (_isHovered) {
-      return [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.1),
-          blurRadius: 5,
-          offset: const Offset(0, 2),
-        ),
-      ];
-    }
-    return [];
+  Widget _buildPlayIndicator(bool isHighlight) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: 4,
+      height: 40,
+      decoration: BoxDecoration(
+        color: isHighlight ? AppColors.secondary : Colors.transparent,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
   }
 }

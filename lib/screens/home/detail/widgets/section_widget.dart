@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:mobile/core/theme/app_colors.dart';
 import 'package:mobile/core/theme/app_text_styles.dart';
 import 'package:mobile/models/section_model.dart';
-import 'package:mobile/providers/practice_provider.dart';
 import 'audio_player_widget.dart';
+import 'compare_widget.dart';
 
 class SectionWidget extends StatefulWidget {
   final Section section;
@@ -24,13 +23,14 @@ class SectionWidget extends StatefulWidget {
 }
 
 class _SectionWidgetState extends State<SectionWidget> {
-  bool _isExpanded = true;
+  bool _isExpanded = false;
   late AudioPlayer _audioPlayer;
 
   @override
   void initState() {
     super.initState();
     _audioPlayer = AudioPlayer();
+    _isExpanded = false; // Always collapsed by default per user request
   }
 
   @override
@@ -43,177 +43,166 @@ class _SectionWidgetState extends State<SectionWidget> {
   Widget build(BuildContext context) {
     final hasChildren = widget.section.children.isNotEmpty;
     final hasAudio = widget.section.audioUrl != null && widget.section.audioUrl!.isNotEmpty;
-    final leftPadding = widget.depth * 16.0;
+    final leftPadding = widget.depth * 12.0;
 
     return Container(
       margin: EdgeInsets.only(
         left: leftPadding,
-        bottom: 12,
+        bottom: 16,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Section Header
+          // Accordion Header
           InkWell(
-            onTap: hasChildren ? () => setState(() => _isExpanded = !_isExpanded) : null,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            onTap: () {
+              setState(() => _isExpanded = !_isExpanded);
+              // Trigger auto-play logic if expanding
+              if (_isExpanded && hasAudio) {
+                // We don't have direct access to AudioPlayerWidget state,
+                // but setting source is already done in initState.
+                // The AudioPlayer is passed to AudioPlayerWidget, so we can control it.
+                 _audioPlayer.resume();
+              }
+            },
+            borderRadius: BorderRadius.circular(12),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: widget.depth == 0
-                    ? AppColors.primary.withValues(alpha: 0.1)
-                    : Colors.transparent,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                color: _isExpanded ? AppColors.primary.withValues(alpha: 0.05) : Colors.transparent,
+                borderRadius: _isExpanded
+                    ? const BorderRadius.vertical(top: Radius.circular(12))
+                    : BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  // Expand/Collapse Icon
-                  if (hasChildren)
-                    Icon(
-                      _isExpanded ? Icons.expand_more : Icons.chevron_right,
-                      color: AppColors.primary,
-                      size: 24,
-                    )
-                  else
-                    Icon(
-                      Icons.subdirectory_arrow_right,
-                      color: AppColors.textSecondary,
-                      size: 20,
+                  // Logo/Icon Placeholder (using primary color for consistency)
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
                     ),
-
-                  const SizedBox(width: 8),
+                    child: Center(
+                      child: Icon(
+                        Icons.music_note,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
 
                   // Section Name
                   Expanded(
                     child: Text(
                       widget.section.name,
-                      style: widget.depth == 0
-                          ? AppTextStyles.headerSmall
-                          : AppTextStyles.bodyMedium.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                      style: AppTextStyles.headerSmall.copyWith(fontSize: 18),
                     ),
                   ),
 
-                  // Progress Badges
-                  if (widget.section.plays > 0 || widget.section.practices > 0) ...[
-                    _buildBadge(
-                      Icons.play_circle_outline,
-                      widget.section.plays,
-                      AppColors.info,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildBadge(
-                      Icons.school_outlined,
-                      widget.section.practices,
-                      AppColors.success,
-                    ),
-                  ],
+                  // Toggle Icon
+                  Icon(
+                    _isExpanded ? Icons.expand_more : Icons.chevron_right,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
                 ],
               ),
             ),
           ),
 
-          // Section Content (when expanded)
+          // Accordion Content
           if (_isExpanded) ...[
-            // Section Lyrics/Content
-            if (widget.section.content != null && widget.section.content!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  widget.section.content!,
-                  style: AppTextStyles.bodyMedium.copyWith(height: 1.5),
-                ),
-              ),
-
-            // Section Audio Player
-            if (hasAudio)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: AudioPlayerWidget(
-                  audioUrl: widget.section.audioUrl!,
-                  audioPlayer: _audioPlayer,
-                  onPlay: () => _onSectionPlay(),
-                ),
-              ),
-
-            // Practice Button
-            if (hasAudio)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: ElevatedButton.icon(
-                  onPressed: _onPractice,
-                  icon: const Icon(Icons.school, size: 18),
-                  label: const Text('Mark as Practiced'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+            Container(
+              color: AppColors.background,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Audio Player
+                  if (hasAudio) ...[
+                    AudioPlayerWidget(
+                      audioUrl: widget.section.audioUrl!,
+                      audioPlayer: _audioPlayer,
+                      initialPlays: widget.section.plays,
+                      playableId: widget.section.id,
+                      playableType: 'App\\Models\\Section',
                     ),
-                  ),
-                ),
-              ),
-
-            // Recursive Children Sections
-            if (hasChildren)
-              Padding(
-                padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
-                child: Column(
-                  children: widget.section.children.map((childSection) {
-                    return SectionWidget(
-                      section: childSection,
+                    const SizedBox(height: 16),
+                    
+                    // Practice/Compare Link
+                    CompareWidget(
                       hymnId: widget.hymnId,
-                      depth: widget.depth + 1,
-                    );
-                  }).toList(),
-                ),
+                      playableType: 'section',
+                      playableId: widget.section.id,
+                      label: 'Compare with Reference',
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Lyrics/Content
+                  if (widget.section.content != null && widget.section.content!.isNotEmpty) ...[
+                    const Text(
+                      'Lyrics',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardBackground,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        widget.section.content!,
+                        style: AppTextStyles.bodyMedium.copyWith(height: 1.6),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Children Sections
+                  if (hasChildren) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'ንፅፅሮች',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...widget.section.children.map((child) => SectionWidget(
+                          section: child,
+                          hymnId: widget.hymnId,
+                          depth: widget.depth + 1,
+                        )),
+                  ],
+                ],
               ),
+            ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildBadge(IconData icon, int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(
-            count.toString(),
-            style: AppTextStyles.caption.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _onSectionPlay() {
-    final provider = Provider.of<PracticeProvider>(context, listen: false);
-    provider.incrementSectionPlay(widget.section.id);
-  }
-
-  void _onPractice() {
-    final provider = Provider.of<PracticeProvider>(context, listen: false);
-    provider.incrementSectionPractice(widget.section.id);
-    
-    // Show feedback
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${widget.section.name} marked as practiced!'),
-        backgroundColor: AppColors.success,
-        duration: const Duration(seconds: 2),
       ),
     );
   }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
+/// Defines the text styles used throughout the application.
+///
+/// This includes styles for headers, body text, buttons, and captions.
 class AppTextStyles {
   // Headers
   static TextStyle headerLarge = TextStyle(

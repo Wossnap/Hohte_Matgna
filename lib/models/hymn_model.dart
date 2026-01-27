@@ -1,4 +1,5 @@
 /// Core model representing a hymn, including metadata like title, plays, and practices.
+library;
 import 'category_model.dart';
 import 'scale_model.dart';
 
@@ -79,8 +80,14 @@ class Hymn {
       scale: json['scale'] is Map
           ? Scale.fromJson(json['scale'])
           : null,
-      plays: (json['plays'] as num?)?.toInt() ?? (json['play_count'] as num?)?.toInt() ?? (json['plays_count'] as num?)?.toInt() ?? 0,
-      practices: (json['practices'] as num?)?.toInt() ?? (json['practice_count'] as num?)?.toInt() ?? (json['practices_count'] as num?)?.toInt() ?? 0,
+      plays: (json['plays'] as num?)?.toInt() ?? 
+             (json['play_count'] as num?)?.toInt() ?? 
+             (json['plays_count'] as num?)?.toInt() ?? 
+             (json['stats']?['plays'] as num?)?.toInt() ?? 0,
+      practices: (json['practices'] as num?)?.toInt() ?? 
+                 (json['practice_count'] as num?)?.toInt() ?? 
+                 (json['practices_count'] as num?)?.toInt() ?? 
+                 (json['stats']?['practices'] as num?)?.toInt() ?? 0,
       audioUrl: audioUrl,
       sheetMusicUrl: handleUrl(json['sheet_music_url'] ?? json['sheet_music']),
       createdAt: json['created_at'] != null

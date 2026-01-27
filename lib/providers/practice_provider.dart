@@ -1,4 +1,5 @@
 /// Provider for managing practice sessions, audio recording submission, and feedback polling.
+library;
 import 'package:flutter/material.dart';
 import '../models/hymn_detail_model.dart';
 import '../models/attempt_model.dart';

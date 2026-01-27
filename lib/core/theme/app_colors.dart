@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// Defines the color palette and semantic colors for the application.
 class AppColors {
   // Brand Colors
   static const Color primary = Color(0xFF8B0000); // Dark Red

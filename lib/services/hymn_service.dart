@@ -16,6 +16,7 @@ class HymnService {
       ApiEndpoints.hymns,
       queryParams: {
         'page': page,
+        'per_page': 10, // Explicitly requested 10 per page
         if (search != null) 'search': search,
         if (categoryId != null) 'category': categoryId,
         if (scaleId != null) 'scale': scaleId,

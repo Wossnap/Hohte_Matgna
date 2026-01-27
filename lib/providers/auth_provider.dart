@@ -1,4 +1,5 @@
 /// Provider managing authentication state and user sessions.
+library;
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
@@ -20,6 +21,9 @@ class AuthProvider with ChangeNotifier {
     checkAuthStatus();
   }
 
+  /// Checks the current authentication status from persistent storage.
+  ///
+  /// Updates [user] and [isAuthenticated] state accordingly.
   Future<void> checkAuthStatus() async {
     try {
       _isLoading = true;
@@ -46,6 +50,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Logs in the user with [email] and [password].
   Future<void> login(String email, String password) async {
     try {
       _isLoading = true;
@@ -66,6 +71,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Registers a new user with [name], [email], and [password].
   Future<void> register(String name, String email, String password) async {
     try {
       _isLoading = true;
@@ -86,6 +92,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Logs out the current user and clears session data.
   Future<void> logout() async {
     try {
       _isLoading = true;

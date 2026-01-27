@@ -12,6 +12,9 @@ import './widgets/search_field.dart';
 import './widgets/daily_focus_widget.dart';
 import './detail/hymn_detail_screen.dart';
 
+/// The home dashboard displaying the list of hymns.
+///
+/// Includes search, filtering, and the daily focus widget.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 

@@ -2,6 +2,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:mobile/models/lyric_segment_model.dart';
+import 'package:mobile/core/api/api_client.dart';
+import 'dart:async';
 
 class AudioSyncViewModel extends ChangeNotifier {
   final AudioPlayer _audioPlayer;
@@ -17,8 +19,19 @@ class AudioSyncViewModel extends ChangeNotifier {
   final Map<int, bool> _segmentCompleted = {};
   final List<LyricSegment> _segments = [];
   
+  final List<StreamSubscription> _subscriptions = [];
+  
   AudioSyncViewModel(this._audioPlayer) {
     _setupAudioListeners();
+  }
+  
+  @override
+  void dispose() {
+    for (var sub in _subscriptions) {
+      sub.cancel();
+    }
+    _subscriptions.clear();
+    super.dispose();
   }
   
   // Getters
@@ -44,28 +57,28 @@ class AudioSyncViewModel extends ChangeNotifier {
   }
   
   void _setupAudioListeners() {
-    _audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
+    _subscriptions.add(_audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
       _isPlaying = state == PlayerState.playing;
       notifyListeners();
-    });
+    }));
     
-    _audioPlayer.onDurationChanged.listen((Duration d) {
+    _subscriptions.add(_audioPlayer.onDurationChanged.listen((Duration d) {
       _duration = d;
       notifyListeners();
-    });
+    }));
     
-    _audioPlayer.onPositionChanged.listen((Duration p) {
+    _subscriptions.add(_audioPlayer.onPositionChanged.listen((Duration p) {
       _position = p;
       _syncLyricsWithAudio(p);
       notifyListeners();
-    });
+    }));
     
-    _audioPlayer.onPlayerComplete.listen((_) {
+    _subscriptions.add(_audioPlayer.onPlayerComplete.listen((_) {
       _isPlaying = false;
       _position = Duration.zero;
       _currentSegmentIndex = null;
       notifyListeners();
-    });
+    }));
   }
   
   void _syncLyricsWithAudio(Duration position) {
@@ -103,7 +116,17 @@ class AudioSyncViewModel extends ChangeNotifier {
   }
   
   Future<void> playFromUrl(String url) async {
-    await _audioPlayer.play(UrlSource(url));
+    if (kIsWeb) {
+      try {
+        final response = await ApiClient.fetchAudioBytes(url);
+        await _audioPlayer.play(BytesSource(response.bodyBytes));
+      } catch (e) {
+        debugPrint('AudioSyncViewModel playFromUrl fallback to UrlSource: $e');
+        await _audioPlayer.play(UrlSource(url));
+      }
+    } else {
+      await _audioPlayer.play(UrlSource(url));
+    }
   }
   
   Future<void> stop() async {

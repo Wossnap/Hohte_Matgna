@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// A standard button used in authentication screens.
+///
+/// Features a fixed size and styling consistent with the auth flow.
 class AuthButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;

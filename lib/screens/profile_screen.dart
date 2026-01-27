@@ -6,6 +6,9 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../models/user_model.dart';
 
+/// Displays user profile information and settings.
+///
+/// Allows the user to view stats, change language, and logout.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 

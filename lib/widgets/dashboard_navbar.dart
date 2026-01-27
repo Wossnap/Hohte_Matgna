@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
+/// The top navigation bar for the dashboard/home screen.
+///
+/// Displays the screen title, language toggle, theme toggle, and user profile.
 class DashboardNavbar extends StatelessWidget {
   const DashboardNavbar({super.key});
 

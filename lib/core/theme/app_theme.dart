@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_text_styles.dart';
 
+/// Defines the global theme configuration for the application.
+///
+/// This includes theme data for light (and potentially dark) modes,
+/// configuring component styles like AppBars, Buttons, and Inputs.
 class AppTheme {
   static final ThemeData lightTheme = ThemeData(
     primaryColor: AppColors.primary,

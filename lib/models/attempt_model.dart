@@ -5,6 +5,7 @@ class Attempt {
   final int playableId;
   final double? score;
   final String? feedback;
+  final Map<String, dynamic>? analysis;
   final String status; // 'pending', 'processing', 'completed', 'failed'
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -15,6 +16,7 @@ class Attempt {
     required this.playableId,
     this.score,
     this.feedback,
+    this.analysis,
     required this.status,
     required this.createdAt,
     this.updatedAt,
@@ -27,6 +29,7 @@ class Attempt {
       playableId: json['playable_id'] ?? 0,
       score: json['score'] != null ? (json['score'] as num).toDouble() : null,
       feedback: json['feedback'],
+      analysis: json['analysis'] is Map<String, dynamic> ? Map<String, dynamic>.from(json['analysis']) : null,
       status: json['status'] ?? 'pending',
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
@@ -44,6 +47,7 @@ class Attempt {
       'playable_id': playableId,
       'score': score,
       'feedback': feedback,
+      'analysis': analysis,
       'status': status,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),

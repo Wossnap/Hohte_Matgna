@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 
+/// A widget to display when there is no data to show.
+///
+/// Includes an icon, title, message, and an optional refresh button.
 class EmptyState extends StatelessWidget {
   final String title;
   final String message;

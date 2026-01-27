@@ -1,3 +1,4 @@
+/// Defines the API endpoint paths used in the application.
 class ApiEndpoints {
   // Auth
   static const String login = '/login';
