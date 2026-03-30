@@ -20,7 +20,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const Center(child: Text('History (Coming Soon)')), // Placeholder for History
+    const Center(child: Text('Saints (Coming Soon)')),
+    const Center(child: Text('Guzo (Coming Soon)')),
+    const Center(child: Text('Fund (Coming Soon)')),
     const ProfileScreen(),
   ];
 
@@ -51,8 +53,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           elevation: 0,
           selectedItemColor: AppColors.primary,
           unselectedItemColor: AppColors.textSecondary.withValues(alpha: 0.5),
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
           type: BottomNavigationBarType.fixed,
           items: [
             BottomNavigationBarItem(
@@ -60,8 +62,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               label: locale.translate('nav_hymns'),
             ),
             BottomNavigationBarItem(
-              icon: const Icon(Icons.history_rounded),
-              label: locale.translate('nav_history'),
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: locale.translate('nav_saints'),
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.explore_rounded),
+              label: locale.translate('nav_guzo'),
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.volunteer_activism_rounded),
+              label: locale.translate('nav_fund'),
             ),
             BottomNavigationBarItem(
               icon: const Icon(Icons.person_rounded),
@@ -73,3 +83,4 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 }
+

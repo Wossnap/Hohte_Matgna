@@ -173,12 +173,12 @@ class _PracticeControlsState extends State<PracticeControls> {
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
-                color: _getScoreColor(attempt.score ?? 0),
+                color: _getScoreColor((attempt.score ?? 0).toDouble()),
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              _getScoreMessage(attempt.score ?? 0),
+              _getScoreMessage((attempt.score ?? 0).toDouble()),
               style: const TextStyle(fontSize: 16),
             ),
             if (attempt.feedback != null && attempt.feedback!.isNotEmpty) ...[
@@ -202,7 +202,7 @@ class _PracticeControlsState extends State<PracticeControls> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              widget.onRecordingComplete?.call(attempt.score ?? 0);
+              widget.onRecordingComplete?.call((attempt.score ?? 0).toDouble());
             },
             child: const Text('Continue'),
           ),

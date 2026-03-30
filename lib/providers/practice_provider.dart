@@ -1,17 +1,26 @@
-/// Provider for managing practice sessions, audio recording submission, and feedback polling.
-library;
-import 'package:flutter/material.dart';
+// Provider for managing practice sessions, audio recording submission, and feedback polling.
+
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/hymn_detail_model.dart';
 import '../models/attempt_model.dart';
 import '../services/practice_service.dart';
 
 class PracticeProvider with ChangeNotifier {
   final PracticeService _practiceService = PracticeService();
+  final Set<int> _completedSections = {};
 
   // Current hymn detail
   HymnDetail? _currentHymn;
   bool _isLoading = false;
   String? _error;
+
+  PracticeProvider() {
+    _loadSectionCompletions();
+  }
+
+  // Getters
+  bool isSectionCompleted(int sectionId) => _completedSections.contains(sectionId);
 
   // Audio comparison state
   bool _isRecording = false;
@@ -53,7 +62,6 @@ class PracticeProvider with ChangeNotifier {
   Future<void> incrementHymnPlay(int hymnId) async {
     try {
       await _practiceService.incrementHymnPlay(hymnId);
-      // Optionally reload hymn to get updated counts
     } catch (e) {
       debugPrint('Error incrementing hymn play: $e');
     }
@@ -63,7 +71,6 @@ class PracticeProvider with ChangeNotifier {
   Future<void> incrementHymnPractice(int hymnId) async {
     try {
       await _practiceService.incrementHymnPractice(hymnId);
-      // Optionally reload hymn to get updated counts
     } catch (e) {
       debugPrint('Error incrementing hymn practice: $e');
     }
@@ -121,6 +128,13 @@ class PracticeProvider with ChangeNotifier {
       _comparisonError = null;
       notifyListeners();
 
+      // Get baseline attempt ID before submission
+      final baseline = await _practiceService.getLatestAttempt(
+        playableType: playableType,
+        playableId: playableId,
+      );
+      final int? baselineId = baseline?.id;
+
       // Submit audio
       final queued = await _practiceService.submitAudioComparison(
         audioFilePath: audioFilePath,
@@ -137,15 +151,20 @@ class PracticeProvider with ChangeNotifier {
       _isPolling = true;
       notifyListeners();
 
-      // Poll for results
+      // Poll for results using baseline ID
       final attempt = await _practiceService.pollForResults(
         playableType: playableType,
         playableId: playableId,
-        afterTimestamp: DateTime.now().subtract(const Duration(seconds: 5)),
+        baselineAttemptId: baselineId,
       );
 
       _latestAttempt = attempt;
       _comparisonError = attempt == null ? 'Timeout waiting for results' : null;
+
+      if (attempt != null && _currentHymn != null) {
+        // Refresh detail to get updated practice counts (backend increments them)
+        await refresh();
+      }
 
       return attempt;
     } catch (e) {
@@ -192,6 +211,40 @@ class PracticeProvider with ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  /// Toggle section completion status
+  Future<void> toggleSectionCompletion(int sectionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_completedSections.contains(sectionId)) {
+      _completedSections.remove(sectionId);
+    } else {
+      _completedSections.add(sectionId);
+    }
+    
+    final List<String> list = _completedSections.map((id) => id.toString()).toList();
+    await prefs.setStringList('completed_sections', list);
+    notifyListeners();
+  }
+
+  /// Load section completions from SharedPreferences
+  Future<void> _loadSectionCompletions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final List<String>? list = prefs.getStringList('completed_sections');
+      if (list != null) {
+        _completedSections.clear();
+        for (final idStr in list) {
+          final id = int.tryParse(idStr);
+          if (id != null) {
+            _completedSections.add(id);
+          }
+        }
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading section completions: $e');
+    }
   }
 
   /// Refresh current hymn

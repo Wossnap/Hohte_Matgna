@@ -7,6 +7,7 @@ import 'package:mobile/core/theme/app_text_styles.dart';
 import 'package:mobile/screens/home/detail/view_models/hymn_detail_viewmodel.dart';
 import 'package:mobile/core/api/api_client.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mobile/screens/home/detail/widgets/metronome_widget.dart';
 
 class AudioPlayerWidget extends StatefulWidget {
   final String audioUrl;
@@ -15,6 +16,11 @@ class AudioPlayerWidget extends StatefulWidget {
   final int? playableId;
   final String? playableType;
   final int initialPlays;
+  final int initialPractices;
+  final double? startTime;
+  final double? endTime;
+  final int? bpm;
+  final List<double>? beatTimestamps;
 
   const AudioPlayerWidget({
     super.key,
@@ -24,6 +30,11 @@ class AudioPlayerWidget extends StatefulWidget {
     this.playableId,
     this.playableType,
     this.initialPlays = 0,
+    this.initialPractices = 0,
+    this.startTime,
+    this.endTime,
+    this.bpm,
+    this.beatTimestamps,
   });
 
   @override
@@ -35,11 +46,30 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   Duration _position = Duration.zero;
   bool _isPlaying = false;
   bool _isLoading = true;
+  int _sessionPlayIncrements = 0; // Track increments during this session
   final List<double> _playbackRates = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  
+  // Section boundaries
+  Duration _sectionStart = Duration.zero;
+  Duration _sectionEnd = Duration.zero;
+  bool get _isSectionMode => widget.startTime != null || widget.endTime != null;
+  
+  // Section-relative position and duration
+  Duration get _sectionPosition => _isSectionMode ? _position - _sectionStart : _position;
+  Duration get _sectionDuration => _isSectionMode && _sectionEnd > _sectionStart ? _sectionEnd - _sectionStart : _duration;
+
+  // Anti-cheat tracking
+  double _listenedTimeSeconds = 0;
+  DateTime? _lastPositionUpdate;
+  static const double _minListenRatio = 0.8; // 80% threshold like website
 
   @override
   void initState() {
     super.initState();
+    // Initialize section boundaries
+    _sectionStart = widget.startTime != null ? Duration(seconds: widget.startTime!.toInt()) : Duration.zero;
+    _sectionEnd = widget.endTime != null ? Duration(seconds: widget.endTime!.toInt()) : Duration.zero;
+    
     _setupAudioPlayer();
     _setInitialSource();
     _startLoadingTimeout();
@@ -68,6 +98,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     } catch (e) {
       debugPrint('Error setting initial source: $e');
     } finally {
+      if (widget.startTime != null) {
+        await widget.audioPlayer.seek(Duration(seconds: widget.startTime!.toInt()));
+      }
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -106,6 +139,23 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
     widget.audioPlayer.onPositionChanged.listen((position) {
       if (mounted) {
+        // Track listened time for anti-cheat
+        final now = DateTime.now();
+        if (_isPlaying && _lastPositionUpdate != null) {
+          final delta = now.difference(_lastPositionUpdate!).inMilliseconds / 1000.0;
+          // If delta is reasonable (not a seek), add to listened time
+          if (delta > 0 && delta < 1.0) {
+            _listenedTimeSeconds += delta;
+          }
+        }
+        _lastPositionUpdate = now;
+
+        // Check if we've reached the section end
+        if (_isSectionMode && _sectionEnd > Duration.zero && position >= _sectionEnd) {
+          _handleFinish();
+          return;
+        }
+        
         setState(() {
           _position = position;
         });
@@ -125,20 +175,79 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
     widget.audioPlayer.onPlayerComplete.listen((_) {
       if (mounted) {
+        // Increment progress on every completion/loop to match website parity
+        widget.onPlay?.call();
+        
+        // Locally increment session plays for immediate feedback
+        setState(() {
+          _sessionPlayIncrements++;
+        });
+
+        // For sections, auto-replay from section start
+        if (_isSectionMode) {
+          // Small delay before replaying to avoid immediate restart
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              widget.audioPlayer.seek(_sectionStart);
+              widget.audioPlayer.resume();
+            }
+          });
+          return;
+        }
+        
+        // For full hymns, handle looping logic
         final viewModel = Provider.of<HymnDetailViewModel>(context, listen: false);
         viewModel.incrementLoop();
         
         if (viewModel.loopCount < viewModel.maxLoops) {
-          widget.audioPlayer.seek(Duration.zero);
-          widget.audioPlayer.resume();
+          _handleFinish(autoResume: true);
         } else {
-          setState(() {
-            _isPlaying = false;
-            _position = Duration.zero;
-          });
+          _handleFinish(autoResume: false);
         }
       }
     });
+  }
+
+  void _handleFinish({bool autoResume = false}) {
+    final viewModel = Provider.of<HymnDetailViewModel>(context, listen: false);
+    
+    // Anti-cheat verification
+    final totalDuration = _sectionDuration.inSeconds.toDouble();
+    final isValidPlay = totalDuration > 0 && (_listenedTimeSeconds >= totalDuration * _minListenRatio);
+    
+    if (isValidPlay) {
+      // Only call onPlay (which increments backend play count) if valid
+      widget.onPlay?.call();
+    }
+    
+    // Reset listening state for next loop
+    _listenedTimeSeconds = 0;
+    
+    if (_isSectionMode) {
+      widget.audioPlayer.pause();
+      widget.audioPlayer.seek(_sectionStart);
+      setState(() {
+        _isPlaying = false;
+        _position = _sectionStart;
+      });
+      
+      if (autoResume) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) widget.audioPlayer.resume();
+        });
+      }
+    } else {
+      viewModel.incrementLoop();
+      if (autoResume) {
+        widget.audioPlayer.seek(Duration.zero);
+        widget.audioPlayer.resume();
+      } else {
+        setState(() {
+          _isPlaying = false;
+          _position = Duration.zero;
+        });
+      }
+    }
   }
 
   Future<void> _togglePlayPause() async {
@@ -149,6 +258,14 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       } else {
         if (viewModel.loopCount >= viewModel.maxLoops) {
           viewModel.resetLoops();
+          setState(() {
+             _sessionPlayIncrements = 0;
+          });
+        }
+        
+        // In section mode, ensure we're at the section start before playing
+        if (_isSectionMode && _position < _sectionStart) {
+          await widget.audioPlayer.seek(_sectionStart);
         }
         
         // Use resume if already set, or play if not
@@ -169,7 +286,8 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         }
         
         widget.audioPlayer.setPlaybackRate(viewModel.playbackRate);
-        widget.onPlay?.call();
+        _lastPositionUpdate = DateTime.now(); // Reset for anti-cheat
+        // widget.onPlay?.call(); // Removed: call in _handleFinish instead for anti-cheat
       }
     } catch (e) {
       debugPrint('Audio playback error: $e');
@@ -187,7 +305,20 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   }
 
   Future<void> _seek(Duration position) async {
-    await widget.audioPlayer.seek(position);
+    if (_isSectionMode) {
+      // For sections, position is relative to section start
+      final absolutePosition = _sectionStart + position;
+      // Constrain within section boundaries
+      final constrainedPosition = absolutePosition.inSeconds < _sectionStart.inSeconds 
+          ? _sectionStart 
+          : (absolutePosition.inSeconds > _sectionEnd.inSeconds ? _sectionEnd : absolutePosition);
+      await widget.audioPlayer.seek(constrainedPosition);
+    } else {
+      await widget.audioPlayer.seek(position);
+    }
+    // Reset anti-cheat on seek
+    _listenedTimeSeconds = 0;
+    _lastPositionUpdate = DateTime.now();
   }
 
   Future<void> _downloadAudio() async {
@@ -220,9 +351,16 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+        border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,8 +387,8 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                     overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                   ),
                   child: Slider(
-                    value: _position.inSeconds.toDouble().clamp(0, _duration.inSeconds.toDouble()),
-                    max: _duration.inSeconds.toDouble() > 0 ? _duration.inSeconds.toDouble() : 1.0,
+                    value: _sectionPosition.inSeconds.toDouble().clamp(0, _sectionDuration.inSeconds.toDouble()),
+                    max: _sectionDuration.inSeconds.toDouble() > 0 ? _sectionDuration.inSeconds.toDouble() : 1.0,
                     onChanged: (value) => _seek(Duration(seconds: value.toInt())),
                   ),
                 ),
@@ -259,8 +397,8 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(_formatDuration(_position), style: AppTextStyles.caption),
-                      Text(_formatDuration(_duration), style: AppTextStyles.caption),
+                      Text(_formatDuration(_sectionPosition), style: AppTextStyles.caption),
+                      Text(_formatDuration(_sectionDuration), style: AppTextStyles.caption),
                     ],
                   ),
                 ),
@@ -285,19 +423,28 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                   ],
                 ),
 
-                ElevatedButton.icon(
+                IconButton(
                   onPressed: _togglePlayPause,
-                  icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-                  label: Text(_isPlaying ? 'Pause' : 'Play'),
-                  style: ElevatedButton.styleFrom(
+                  icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, size: 28),
+                  style: IconButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.all(12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
+                  tooltip: _isPlaying ? 'Pause' : 'Play',
                 ),
               ],
             ),
+            
+            // Metronome
+            MetronomeWidget(
+              bpm: widget.bpm,
+              beatTimestamps: widget.beatTimestamps,
+              currentPosition: _position,
+              isPlaying: _isPlaying,
+            ),
+            
             const SizedBox(height: 16),
 
             // Loop Info
@@ -308,7 +455,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Plays: ${widget.initialPlays + viewModel.loopCount}',
+                      'Plays: ${widget.initialPlays + _sessionPlayIncrements} | Practices: ${widget.initialPractices}',
                       style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
                     ),
                     Text(
@@ -319,7 +466,12 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                 ),
                 if (viewModel.loopCount > 0)
                   TextButton(
-                    onPressed: viewModel.resetLoops,
+                    onPressed: () {
+                      viewModel.resetLoops();
+                      setState(() {
+                        _sessionPlayIncrements = 0;
+                      });
+                    },
                     child: const Text('Reset'),
                   ),
               ],
@@ -339,7 +491,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
             color: Colors.white,
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
             borderRadius: BorderRadius.circular(4),
           ),
           child: DropdownButtonHideUnderline(
@@ -362,3 +514,4 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     );
   }
 }
+

@@ -7,58 +7,61 @@ import 'app_colors.dart';
 class AppTextStyles {
   // Headers
   static TextStyle headerLarge = TextStyle(
-    fontSize: 32,
-    fontWeight: FontWeight.bold,
+    fontSize: 28, // Adjusted for mobile
+    fontWeight: FontWeight.w900,
     color: AppColors.textPrimary,
     letterSpacing: -0.5,
   );
   
   static TextStyle headerMedium = TextStyle(
-    fontSize: 24,
-    fontWeight: FontWeight.w700,
+    fontSize: 22,
+    fontWeight: FontWeight.w800,
     color: AppColors.textPrimary,
     letterSpacing: -0.3,
   );
   
   static TextStyle headerSmall = TextStyle(
-    fontSize: 20,
-    fontWeight: FontWeight.w700,
+    fontSize: 18,
+    fontWeight: FontWeight.w800,
     color: AppColors.textPrimary,
   );
   
   // Body
   static TextStyle bodyLarge = TextStyle(
-    fontSize: 18,
+    fontSize: 16,
     color: AppColors.textPrimary,
-    height: 1.4,
+    height: 1.5,
   );
   
   static TextStyle bodyMedium = TextStyle(
-    fontSize: 16,
+    fontSize: 14,
     color: AppColors.textPrimary,
-    height: 1.4,
+    height: 1.5,
   );
   
   static TextStyle bodySmall = TextStyle(
-    fontSize: 14,
+    fontSize: 12,
     color: AppColors.textPrimary,
   );
   
   // Buttons
   static TextStyle buttonLarge = TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
+    fontSize: 15,
+    fontWeight: FontWeight.w700,
     color: Colors.white,
+    letterSpacing: 0.5,
   );
   
   static TextStyle buttonMedium = TextStyle(
-    fontSize: 14,
-    fontWeight: FontWeight.w600,
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.5,
   );
   
   // Caption
   static TextStyle caption = TextStyle(
-    fontSize: 12,
+    fontSize: 11,
     color: AppColors.textSecondary,
+    fontWeight: FontWeight.w500,
   );
 }

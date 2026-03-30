@@ -1,81 +1,104 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/constants.dart';
 
-/// A network client wrapper for making HTTP requests.
-///
-/// Handles common tasks like adding authorization headers,
-/// JSON encoding/decoding, and base URL management.
 class ApiClient {
-  static const String baseUrl = 'https://hohte-matgna.batelew.com/api';
-  
+  static const String baseUrl = AppConstants.apiBaseUrl;
+
+  /// Retrieves the headers for API requests, including the authentication token if available.
   static Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
+    final token = prefs.getString(AppConstants.accessTokenKey);
     
-    final headers = {
-      'Accept': 'application/json',
+    return {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
     };
-    
-    if (token != null) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    
-    return headers;
   }
 
   /// Performs a GET request to the specified [endpoint].
-  ///
-  /// [queryParams] are optional and will be appended to the URL.
   static Future<http.Response> get(String endpoint, {Map<String, dynamic>? queryParams}) async {
     final headers = await _getHeaders();
     final uri = Uri.parse('$baseUrl$endpoint').replace(
       queryParameters: queryParams?.map((key, value) => MapEntry(key, value.toString())),
     );
     
+    debugPrint('ApiClient GET: $uri');
     final response = await http.get(uri, headers: headers);
+    _handleResponse(response);
+    
     return response;
   }
 
   /// Performs a POST request to the specified [endpoint].
-  ///
-  /// [body] is optional and will be JSON encoded.
   static Future<http.Response> post(String endpoint, {Map<String, dynamic>? body}) async {
     final headers = await _getHeaders();
+    final uri = Uri.parse('$baseUrl$endpoint');
+    
+    debugPrint('ApiClient POST: $uri');
+    if (body != null) debugPrint('ApiClient Body: ${jsonEncode(body)}');
+    
     final response = await http.post(
-      Uri.parse('$baseUrl$endpoint'),
+      uri,
       headers: headers,
       body: body != null ? jsonEncode(body) : null,
     );
+    _handleResponse(response);
+    
     return response;
   }
 
-  /// Performs a multipart POST request (e.g., for file uploads).
-  ///
-  /// [fields] are text fields to include in the request.
-  /// [files] are the files to upload.
+  /// Performs a multipart POST request. Supports both automated file loading from path
+  /// and manual MultipartFile injection (useful for Web/Bytes).
   static Future<http.Response> postMultipart(
     String endpoint, {
-    required Map<String, String> fields,
-    required List<http.MultipartFile> files,
+    Map<String, String>? fields,
+    String? filePath,
+    String? fieldName,
+    List<http.MultipartFile>? files,
   }) async {
-    final token = (await SharedPreferences.getInstance()).getString('access_token');
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'));
+    final headers = await _getHeaders();
+    final uri = Uri.parse('$baseUrl$endpoint');
     
-    request.headers['Authorization'] = 'Bearer $token';
-    request.headers['Accept'] = 'application/json';
+    debugPrint('ApiClient Multipart POST: $uri');
     
-    request.fields.addAll(fields);
-    request.files.addAll(files);
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll(headers);
+    
+    if (fields != null) {
+      request.fields.addAll(fields);
+    }
+    
+    if (files != null) {
+      request.files.addAll(files);
+    } else if (filePath != null && fieldName != null) {
+      request.files.add(await http.MultipartFile.fromPath(fieldName, filePath));
+    }
     
     final streamedResponse = await request.send();
-    return http.Response.fromStream(streamedResponse);
+    final response = await http.Response.fromStream(streamedResponse);
+    _handleResponse(response);
+    
+    return response;
   }
 
-  /// Fetches audio bytes from a URL.
-  /// Useful for robust playback on Web to bypass CORS issues.
+  /// Global response handler for logging and session expiration
+  static void _handleResponse(http.Response response) {
+    debugPrint('ApiClient Response [${response.statusCode}]: ${response.body.length > 500 ? '${response.body.substring(0, 500)}...' : response.body}');
+    
+    if (response.statusCode == 401 || response.statusCode == 419) {
+      debugPrint('SESSION EXPIRED: Received ${response.statusCode}');
+      // Note: In a larger app, we would use a GlobalKey<NavigatorState>
+      // to redirect to the login screen or show an overlay like the website.
+    }
+  }
+
+  /// Special method to fetch audio bytes
   static Future<http.Response> fetchAudioBytes(String url) async {
+    debugPrint('ApiClient fetchAudioBytes: $url');
     final response = await http.get(Uri.parse(url));
     return response;
   }

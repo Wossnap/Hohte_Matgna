@@ -53,10 +53,18 @@ class _SearchFieldState extends State<SearchField> {
     final locale = Provider.of<LocaleProvider>(context);
 
     return Container(
-      height: 54,
+      height: 52,
       decoration: BoxDecoration(
-        color: AppColors.greyCard,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: TextField(
         controller: _controller,
@@ -67,10 +75,10 @@ class _SearchFieldState extends State<SearchField> {
             color: AppColors.textSecondary.withValues(alpha: 0.5),
             fontWeight: FontWeight.w500,
           ),
-          prefixIcon: Icon(Icons.search_rounded, color: AppColors.primary.withValues(alpha: 0.7)),
+          prefixIcon: Icon(Icons.search_rounded, color: AppColors.primary.withValues(alpha: 0.7), size: 28),
           suffixIcon: _controller.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 20),
+                  icon: const Icon(Icons.close_rounded, size: 24),
                   onPressed: _clearSearch,
                 )
               : null,

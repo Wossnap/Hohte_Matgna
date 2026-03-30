@@ -1,5 +1,5 @@
-/// Provider for fetching and caching static metadata like categories and scales.
-library;
+// Provider for fetching and caching static metadata like categories and scales.
+
 import 'package:flutter/material.dart';
 import '../models/category_model.dart';
 import '../models/scale_model.dart';
@@ -18,27 +18,36 @@ class MetadataProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  bool _isAuthInitialized = false;
+
   MetadataProvider() {
-    _loadMetadata();
+    // Initial load will be handled by update()
+  }
+
+  void update(bool isAuthenticated) {
+    if (isAuthenticated && !_isAuthInitialized) {
+      _isAuthInitialized = true;
+      _loadMetadata();
+    } else if (!isAuthenticated) {
+      _isAuthInitialized = false;
+      _categories = [];
+      _scales = [];
+      notifyListeners();
+    }
   }
 
   Future<void> _loadMetadata() async {
+    if (!_isAuthInitialized) return;
     try {
       _isLoading = true;
       _error = null;
       notifyListeners();
       
-      // Load categories and scales in parallel
-      final categoriesFuture = _metadataService.getCategories();
-      final scalesFuture = _metadataService.getScales();
+      final data = await _metadataService.getDashboardMetadata();
       
-      final categoriesData = await categoriesFuture;
-      final scalesData = await scalesFuture;
+      _categories = data['categories'] as List<Category>;
+      _scales = data['scales'] as List<Scale>;
       
-      _categories = categoriesData;
-      _scales = scalesData;
-      
-      // Print for debugging (as per requirement)
       debugPrint('Loaded ${_categories.length} categories');
       debugPrint('Loaded ${_scales.length} scales');
       

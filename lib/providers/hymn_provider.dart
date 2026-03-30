@@ -1,5 +1,5 @@
-/// Provider for fetching and managing the list of hymns, including filtering and searching.
-library;
+// Provider for fetching and managing the list of hymns, including filtering and searching.
+
 import 'package:flutter/material.dart';
 import '../models/hymn_model.dart';
 import '../models/pagination_model.dart';
@@ -40,14 +40,36 @@ class HymnProvider with ChangeNotifier {
   int? get selectedScaleId => _selectedScaleId;
   String? get sortBy => _sortBy;
 
+  bool _isAuthInitialized = false;
+
   HymnProvider() {
-    loadHymns();
-    loadTopHymns();
+    // Initial load will be handled by update() once AuthProvider is ready
+  }
+
+  /// Called by ChangeNotifierProxyProvider when AuthProvider changes
+  void update(bool isAuthenticated) {
+    if (isAuthenticated && !_isAuthInitialized) {
+      _isAuthInitialized = true;
+      loadHymns();
+      loadTopHymns();
+    } else if (!isAuthenticated) {
+      _isAuthInitialized = false;
+      _hymns = [];
+      _topHymns = [];
+      _pagination = null;
+      notifyListeners();
+    }
   }
 
   /// Load hymns (initial load or load more)
   Future<void> loadHymns({bool loadMore = false}) async {
     if (loadMore && (_loadingMore || !hasMore)) return;
+    
+    // In current backend, dashboard requires auth
+    if (!_isAuthInitialized) {
+      debugPrint('HymnProvider: Skipping loadHymns (not authenticated)');
+      return;
+    }
 
     try {
       _error = null;
@@ -99,9 +121,9 @@ class HymnProvider with ChangeNotifier {
       _loadingTop = true;
       notifyListeners();
 
-      // Fetch top hymns by sorting by practices or plays desc
+      // website uses ?sort=plays to get trending hymns
       final Pagination<Hymn> result = await _hymnService.getHymns(
-        sort: 'practices_desc', // Assuming this sort exists on backend
+        sort: 'plays',
         page: 1,
       );
 
@@ -118,6 +140,7 @@ class HymnProvider with ChangeNotifier {
   void setSearchQuery(String query) {
     if (_searchQuery == query) return;
     _searchQuery = query;
+    _pagination = null; // Reset pagination
     loadHymns();
   }
 
@@ -125,6 +148,7 @@ class HymnProvider with ChangeNotifier {
   void setCategoryId(int? categoryId) {
     if (_selectedCategoryId == categoryId) return;
     _selectedCategoryId = categoryId;
+    _pagination = null; // Reset pagination
     loadHymns();
   }
 
@@ -132,6 +156,7 @@ class HymnProvider with ChangeNotifier {
   void setScaleId(int? scaleId) {
     if (_selectedScaleId == scaleId) return;
     _selectedScaleId = scaleId;
+    _pagination = null; // Reset pagination
     loadHymns();
   }
 
@@ -139,6 +164,7 @@ class HymnProvider with ChangeNotifier {
   void setSort(String? sort) {
     if (_sortBy == sort) return;
     _sortBy = sort;
+    _pagination = null; // Reset pagination
     loadHymns();
   }
 

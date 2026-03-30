@@ -3,6 +3,7 @@ class UserModel {
   final int id;
   final String name;
   final String email;
+  final String role;
   final String? emailVerifiedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -11,6 +12,7 @@ class UserModel {
     required this.id,
     required this.name,
     required this.email,
+    required this.role,
     this.emailVerifiedAt,
     required this.createdAt,
     required this.updatedAt,
@@ -21,6 +23,7 @@ class UserModel {
       id: json['id'] ?? 0,
       name: json['name'] ?? '',
       email: json['email'] ?? '',
+      role: json['role'] ?? 'user',
       emailVerifiedAt: json['email_verified_at'],
       createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toString()),
       updatedAt: DateTime.parse(json['updated_at'] ?? DateTime.now().toString()),
@@ -32,6 +35,7 @@ class UserModel {
       'id': id,
       'name': name,
       'email': email,
+      'role': role,
       'email_verified_at': emailVerifiedAt,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),

@@ -7,6 +7,8 @@ class Attempt {
   final String? feedback;
   final Map<String, dynamic>? analysis;
   final String status; // 'pending', 'processing', 'completed', 'failed'
+  final bool isSaved;
+  final String? recordingPath;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -18,6 +20,8 @@ class Attempt {
     this.feedback,
     this.analysis,
     required this.status,
+    required this.isSaved,
+    this.recordingPath,
     required this.createdAt,
     this.updatedAt,
   });
@@ -31,6 +35,8 @@ class Attempt {
       feedback: json['feedback'],
       analysis: json['analysis'] is Map<String, dynamic> ? Map<String, dynamic>.from(json['analysis']) : null,
       status: json['status'] ?? 'pending',
+      isSaved: json['is_saved'] ?? false,
+      recordingPath: json['recording_path'],
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
@@ -49,6 +55,8 @@ class Attempt {
       'feedback': feedback,
       'analysis': analysis,
       'status': status,
+      'is_saved': isSaved,
+      'recording_path': recordingPath,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };

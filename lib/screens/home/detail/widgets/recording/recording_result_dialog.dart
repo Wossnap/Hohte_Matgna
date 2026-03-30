@@ -16,8 +16,8 @@ class RecordingResultDialog extends StatelessWidget {
   });
 
   Color _getScoreColor(double score) {
-    if (score >= 80) return AppColors.success;
-    if (score >= 60) return AppColors.warning;
+    if (score >= 90) return AppColors.success;
+    if (score >= 75) return AppColors.warning;
     return AppColors.error;
   }
 
@@ -32,64 +32,104 @@ class RecordingResultDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Row(
-        children: [
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      title: Row(
+        children: const [
           Icon(Icons.analytics, color: AppColors.primary),
           SizedBox(width: 8),
-          Text('Comparison Result'),
+          Text('Practice Score', style: TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (attempt.score != null) ...[
-            Center(
-              child: Text(
-                '${attempt.score!.toStringAsFixed(1)}%',
-                style: AppTextStyles.headerLarge.copyWith(
-                  color: _getScoreColor(attempt.score!),
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                ),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+              decoration: BoxDecoration(
+                color: _getScoreColor(attempt.score!.toDouble()).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
               ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                _getScoreLabel(attempt.score!),
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+              child: Column(
+                children: [
+                  Text(
+                    '${attempt.score!.toStringAsFixed(1)}%',
+                    style: AppTextStyles.headerLarge.copyWith(
+                      color: _getScoreColor(attempt.score!.toDouble()),
+                      fontSize: 56,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _getScoreLabel(attempt.score!.toDouble()),
+                    style: AppTextStyles.headerSmall.copyWith(
+                      color: _getScoreColor(attempt.score!.toDouble()),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
           if (attempt.feedback != null && attempt.feedback!.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 8),
+            const SizedBox(height: 18),
             Text(
-              'Feedback:',
+              'Feedback',
               style: AppTextStyles.bodyMedium.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              attempt.feedback!,
-              style: AppTextStyles.bodyMedium,
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                attempt.feedback!,
+                style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w500),
+              ),
             ),
           ],
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: onClose,
-          child: const Text('Close'),
-        ),
-        ElevatedButton(
-          onPressed: onRetry,
-          child: const Text('Try Again'),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onClose,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Close'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: onRetry,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Try Again'),
+              ),
+            ),
+          ],
         ),
       ],
     );

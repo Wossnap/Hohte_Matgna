@@ -13,8 +13,21 @@ import 'screens/auth/login_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'providers/locale_provider.dart';
 
+import 'dart:async';
+
 void main() {
-  runApp(const MyApp());
+  runZonedGuarded(() {
+    WidgetsFlutterBinding.ensureInitialized();
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      debugPrint('FLUTTER ERROR: ${details.exception}');
+    };
+    debugPrint('Starting App...');
+    runApp(const MyApp());
+  }, (error, stack) {
+    debugPrint('GLOBAL ERROR: $error');
+    debugPrint('STACK TRACE: $stack');
+  });
 }
 
 class MyApp extends StatelessWidget {
@@ -25,8 +38,14 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => MetadataProvider()),
-        ChangeNotifierProvider(create: (_) => HymnProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, MetadataProvider>(
+          create: (_) => MetadataProvider(),
+          update: (_, auth, metadata) => metadata!..update(auth.isAuthenticated),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, HymnProvider>(
+          create: (_) => HymnProvider(),
+          update: (_, auth, hymn) => hymn!..update(auth.isAuthenticated),
+        ),
         ChangeNotifierProvider(create: (_) => PracticeProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
       ],

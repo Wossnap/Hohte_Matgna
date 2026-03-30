@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../providers/hymn_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../../widgets/app_loader.dart';
@@ -23,25 +25,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final ScrollController _scrollController = ScrollController();
-
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      _loadMore();
-    }
   }
 
   void _loadMore() {
@@ -62,10 +53,20 @@ class _HomeScreenState extends State<HomeScreen> {
     final locale = Provider.of<LocaleProvider>(context);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(locale.translate('home_title'), style: AppTextStyles.headerMedium),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        title: Text(
+          locale.translate('home_title'), 
+          style: AppTextStyles.headerMedium.copyWith(color: AppColors.textPrimary),
+        ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 28, color: AppColors.primary), 
+            onPressed: _refresh,
+          ),
         ],
       ),
       body: _buildContent(hymnProvider, locale),
@@ -87,9 +88,56 @@ class _HomeScreenState extends State<HomeScreen> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
-        controller: _scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         children: [
+          // Logo Section - Refined to match website hero style
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8.0, bottom: 40.0),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.2), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.05),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: SvgPicture.asset(
+                      'assets/images/Hohte_logo.svg',
+                      height: 80,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'ዘሆኅተ',
+                    style: AppTextStyles.headerLarge.copyWith(
+                      color: AppColors.primary,
+                      letterSpacing: 4.0,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 26,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 40,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: AppColors.accentGold,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SearchField(),
           const SizedBox(height: 12),
           const FilterBar(),
@@ -105,19 +153,20 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icons.music_off,
               onRetry: () => hymnProvider.refresh(),
             )
-          else
+          else ...[
+            const SizedBox(height: 16),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                mainAxisSpacing: 20,
-                crossAxisSpacing: 20,
-                childAspectRatio: 0.65,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.72,
               ),
-              itemCount: hymnProvider.hymns.length + (hymnProvider.loadingMore ? 1 : 0),
+              itemCount: hymnProvider.hymns.length + (hymnProvider.hasMore ? 1 : 0),
               itemBuilder: (context, index) {
-                if (index == hymnProvider.hymns.length) return _buildLoadingMore();
+                if (index == hymnProvider.hymns.length) return _buildLoadMoreButton();
 
                 final hymn = hymnProvider.hymns[index];
                 return HymnCard(
@@ -133,17 +182,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildLoadingMore() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 16),
+  Widget _buildLoadMoreButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Center(
-        child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+        child: ElevatedButton(
+          onPressed: _loadMore,
+          child: const Text('Load More'),
+        ),
       ),
     );
   }
 }
+

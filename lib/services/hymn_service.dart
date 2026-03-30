@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import '../core/api/api_client.dart';
 import '../core/api/api_endpoints.dart';
 import '../models/hymn_model.dart';
@@ -16,7 +17,6 @@ class HymnService {
       ApiEndpoints.hymns,
       queryParams: {
         'page': page,
-        'per_page': 10, // Explicitly requested 10 per page
         if (search != null) 'search': search,
         if (categoryId != null) 'category': categoryId,
         if (scaleId != null) 'scale': scaleId,
@@ -24,31 +24,18 @@ class HymnService {
       },
     );
 
+    debugPrint('HymnService response status: ${response.statusCode}');
+    debugPrint('HymnService response body length: ${response.body.length}');
     if (response.statusCode != 200) {
-      throw Exception('Failed to load hymns');
+      debugPrint('HymnService error response: ${response.body}');
+      throw Exception('Failed to load hymns: ${response.statusCode}');
     }
 
     final decoded = jsonDecode(response.body);
 
-    // ✅ Laravel-style paginated response
+    // ✅ Laravel/Inertia paginated response
     if (decoded is Map<String, dynamic>) {
       return Pagination<Hymn>.fromJson(decoded, (json) => Hymn.fromJson(json));
-    }
-
-    // ✅ Plain list fallback
-    if (decoded is List) {
-      final hymns = decoded
-          .whereType<Map<String, dynamic>>()
-          .map((json) => Hymn.fromJson(json))
-          .toList();
-
-      return Pagination<Hymn>(
-        data: hymns,
-        currentPage: 1,
-        lastPage: 1,
-        total: hymns.length,
-        perPage: hymns.length,
-      );
     }
 
     throw Exception('Unexpected hymns response format');

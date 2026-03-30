@@ -1,6 +1,7 @@
-/// Model representing a section of a hymn, containing multiple lyric segments.
-library;
+// Model representing a section of a hymn, containing multiple lyric segments.
+
 import 'lyric_segment_model.dart';
+import '../core/utils/url_utils.dart';
 
 class Section {
   final int id;
@@ -9,6 +10,13 @@ class Section {
   final String? audioUrl;
   final int plays;
   final int practices;
+  final double? bestScore;
+  final int? playMinutes;
+  final int order;
+  final double? startTime;
+  final double? endTime;
+  final int? duration;
+  final List<dynamic>? comparisonBreakpoints;
   final List<Section> children;
   final List<LyricSegment> lyricSegments;
   final DateTime? createdAt;
@@ -21,6 +29,13 @@ class Section {
     this.audioUrl,
     required this.plays,
     required this.practices,
+    this.bestScore,
+    this.playMinutes,
+    required this.order,
+    this.startTime,
+    this.endTime,
+    this.duration,
+    this.comparisonBreakpoints,
     required this.children,
     this.lyricSegments = const [],
     this.createdAt,
@@ -29,10 +44,7 @@ class Section {
 
   static String? handleUrl(dynamic url) {
     if (url == null || url is! String) return null;
-    if (url.startsWith('http')) return url;
-    const baseUrl = 'https://hohte-matgna.batelew.com/storage';
-    final path = url.startsWith('/') ? url : '/$url';
-    return '$baseUrl$path';
+    return UrlUtils.resolveStorageUrl(url);
   }
 
   static String? stripHtml(String? html) {
@@ -45,7 +57,7 @@ class Section {
         .trim();
   }
 
-  factory Section.fromJson(dynamic json) {
+  factory Section.fromJson(dynamic json, [Map<String, dynamic>? progressSections]) {
     Map<String, dynamic> map;
     if (json is Map<String, dynamic>) {
       map = json;
@@ -55,15 +67,24 @@ class Section {
       map = {};
     }
 
+    final id = map['id'] is num ? (map['id'] as num).toInt() : int.parse(map['id'].toString());
+    
+    // Extract progress data if available
+    final progress = progressSections?[id.toString()];
+    final int plays = progress?['play_count'] ?? map['play_count'] ?? 0;
+    final int practices = progress?['practice_count'] ?? map['practice_count'] ?? 0;
+    final double? bestScore = progress?['best_score'] != null ? (progress!['best_score'] as num).toDouble() : null;
+    final int? playMinutes = progress?['play_minutes'] is int ? progress!['play_minutes'] : null;
+
     final childrenRaw = map['children'];
     List<Section> childrenList = [];
     if (childrenRaw is List) {
       for (final c in childrenRaw) {
-        childrenList.add(Section.fromJson(c));
+        childrenList.add(Section.fromJson(c, progressSections));
       }
     }
 
-    final segmentsRaw = map['effective_lyric_segments'] ?? map['segments'];
+    final segmentsRaw = map['effective_lyric_segments'] ?? map['segments'] ?? map['lyric_segments'];
     List<LyricSegment> segmentsList = [];
     if (segmentsRaw is List) {
       for (final s in segmentsRaw) {
@@ -72,12 +93,19 @@ class Section {
     }
 
     return Section(
-      id: map['id'] ?? 0,
+      id: id,
       name: map['name'] ?? '',
-      content: stripHtml(map['lyrics_content'] ?? map['content'] ?? map['text'] ?? map['lyrics']),
-      audioUrl: handleUrl(map['audio_url'] ?? map['audio'] ?? map['audio_file'] ?? map['file_url']),
-      plays: (map['plays'] as num?)?.toInt() ?? (map['play_count'] as num?)?.toInt() ?? 0,
-      practices: (map['practices'] as num?)?.toInt() ?? (map['practice_count'] as num?)?.toInt() ?? 0,
+      content: stripHtml(map['lyrics_content'] ?? map['content'] ?? map['lyrics']),
+      audioUrl: handleUrl(map['audio_url'] ?? map['audio']),
+      plays: plays,
+      practices: practices,
+      bestScore: bestScore,
+      playMinutes: playMinutes,
+      order: map['order'] != null ? (map['order'] is num ? (map['order'] as num).toInt() : int.parse(map['order'].toString())) : 0,
+      startTime: map['start_time'] != null ? (map['start_time'] is num ? (map['start_time'] as num).toDouble() : double.parse(map['start_time'].toString())) : null,
+      endTime: map['end_time'] != null ? (map['end_time'] is num ? (map['end_time'] as num).toDouble() : double.parse(map['end_time'].toString())) : null,
+      duration: map['duration'] is num ? (map['duration'] as num).toInt() : null,
+      comparisonBreakpoints: map['comparison_breakpoints'] is List ? List<dynamic>.from(map['comparison_breakpoints']) : null,
       children: childrenList,
       lyricSegments: segmentsList,
       createdAt: map['created_at'] != null ? DateTime.parse(map['created_at']) : null,
@@ -93,6 +121,11 @@ class Section {
       'audio_url': audioUrl,
       'plays': plays,
       'practices': practices,
+      'order': order,
+      'start_time': startTime,
+      'end_time': endTime,
+      'duration': duration,
+      'comparison_breakpoints': comparisonBreakpoints,
       'children': children.map((e) => e.toJson()).toList(),
       'lyric_segments': lyricSegments.map((e) => e.toJson()).toList(),
       'created_at': createdAt?.toIso8601String(),

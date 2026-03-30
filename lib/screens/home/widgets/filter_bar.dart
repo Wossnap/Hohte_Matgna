@@ -35,11 +35,6 @@ class _FilterBarState extends State<FilterBar> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.greyCard,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(12),
       child: Column(
         children: [
           Row(
@@ -162,7 +157,7 @@ class _FilterBarState extends State<FilterBar> {
             child: DropdownButton<T>(
               value: value,
               isExpanded: true,
-              icon: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: AppColors.primary.withValues(alpha: 0.7)),
+              icon: Icon(Icons.keyboard_arrow_down_rounded, size: 28, color: AppColors.primary.withValues(alpha: 0.7)),
               style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
               onChanged: onChanged,
               dropdownColor: Colors.white,

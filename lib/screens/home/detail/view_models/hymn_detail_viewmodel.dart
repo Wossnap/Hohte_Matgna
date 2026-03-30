@@ -592,6 +592,12 @@ class HymnDetailViewModel extends ChangeNotifier {
     await _practiceProvider.incrementSectionPractice(sectionId);
   }
   
+  Future<void> incrementHymnPractice() async {
+    if (_currentHymn != null) {
+      await _practiceProvider.incrementHymnPractice(_currentHymn!.hymn.id);
+    }
+  }
+  
   @override
   void dispose() {
     _audioSyncViewModel.dispose();

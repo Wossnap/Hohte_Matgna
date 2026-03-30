@@ -5,6 +5,7 @@
 class AppConstants {
   // API Configuration
   static const String apiBaseUrl = 'https://hohte-matgna.batelew.com/api';
+  static const String storageBaseUrl = 'https://hohte-matgna.batelew.com/storage';
   
   // Storage Keys
   static const String accessTokenKey = 'access_token';

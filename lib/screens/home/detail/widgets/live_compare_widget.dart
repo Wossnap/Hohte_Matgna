@@ -197,3 +197,4 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
     );
   }
 }
+

@@ -10,6 +10,7 @@ import 'package:mobile/core/theme/app_text_styles.dart';
 import 'package:mobile/providers/practice_provider.dart';
 import 'package:mobile/core/api/api_client.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:mobile/screens/home/detail/widgets/note_comparison_graph.dart';
 import 'live_compare_widget.dart';
 import '../../../../../models/attempt_model.dart';
 
@@ -18,6 +19,7 @@ class CompareWidget extends StatefulWidget {
   final String playableType;
   final int? playableId; // Optional section ID
   final String label;
+  final bool isInteractive;
 
   const CompareWidget({
     super.key,
@@ -25,6 +27,7 @@ class CompareWidget extends StatefulWidget {
     required this.playableType,
     this.playableId,
     this.label = 'Compare with reference',
+    this.isInteractive = false,
   });
 
   @override
@@ -40,6 +43,7 @@ class _CompareWidgetState extends State<CompareWidget> {
   bool _isRecording = false;
   bool _isPaused = false;
   bool _isSubmitting = false;
+  bool _recordingCompleted = false; // New state
   int _countdown = 0;
   Timer? _countdownTimer;
   Duration _maxDuration = Duration.zero;
@@ -154,7 +158,7 @@ class _CompareWidgetState extends State<CompareWidget> {
       
       await _audioRecorder.start(
         RecordConfig(
-          encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc,
+          encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.wav,
           numChannels: 1,
           sampleRate: 48000,
           bitRate: 128000,
@@ -225,42 +229,183 @@ class _CompareWidgetState extends State<CompareWidget> {
       _isRecording = false;
       _isPaused = false;
       _recordedFilePath = path;
+      _recordingCompleted = true;
     });
-    if (path != null) {
-      if (mounted) {
-        _submit(path);
-      }
-    }
+    _showRecordingCompleteDialog();
   }
 
-  Future<void> _submit(String path) async {
-    if (!mounted) return;
+  Future<void> _showScore() async {
+    if (_recordedFilePath == null) return;
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
     });
 
-    final provider = Provider.of<PracticeProvider>(context, listen: false);
     try {
+      final provider = Provider.of<PracticeProvider>(context, listen: false);
+      debugPrint('Starting comparison for playableType: ${widget.playableType}, playableId: ${widget.playableId ?? widget.hymnId}');
       final attempt = await provider.submitAndPollComparison(
-        audioFilePath: path,
+        audioFilePath: _recordedFilePath!,
         playableType: widget.playableType,
         playableId: widget.playableId ?? widget.hymnId,
         algorithm: _algorithm,
       );
 
+      debugPrint('Comparison result received: ${attempt?.score}');
+
       if (!mounted) return;
+
       setState(() {
         _latestAttempt = attempt;
-        _successMessage = attempt != null ? 'Similarity Score: ${attempt.score?.toStringAsFixed(1)}%' : null;
+        _successMessage = attempt != null ? '${attempt.score?.toStringAsFixed(1)}%' : null;
         _isSubmitting = false;
       });
+
+      // Show result dialog with score and playback controls
+      if (attempt != null && mounted) {
+        debugPrint('Showing comparison result dialog with score: ${attempt.score}');
+        _showComparisonResultDialog(attempt);
+      } else {
+        debugPrint('Attempt is null or component not mounted');
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Comparison completed but no result received';
+          });
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _errorMessage = 'Comparison failed: $e';
         _isSubmitting = false;
       });
+    }
+  }
+
+  void _showComparisonResultDialog(Attempt attempt) {
+    showDialog(
+      context: context,
+      barrierDismissible: true, // Changed to true for testing
+      builder: (context) => AlertDialog(
+        title: const Text('Comparison Result'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Score: ${attempt.score?.toStringAsFixed(1)}%',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
+            ),
+            const SizedBox(height: 16),
+            const Text('Listen to your recording:'),
+            const SizedBox(height: 8),
+            IconButton(
+              onPressed: () => _playRecordedFile(),
+              icon: Icon(_isPlayingPlayback ? Icons.pause_circle : Icons.play_circle),
+              iconSize: 48,
+              color: AppColors.primary,
+            ),
+            if ((attempt.analysis?['note_sequences']?['reference'] as List?)?.isNotEmpty ?? false)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: NoteComparisonGraph(
+                  referenceNotes: List<String>.from(attempt.analysis?['note_sequences']?['reference'] ?? []),
+                  recordedNotes: List<String>.from(attempt.analysis?['note_sequences']?['recorded'] ?? []),
+                  height: 120,
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _recordingCompleted = false;
+                _latestAttempt = null;
+                _recordedFilePath = null;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _cancelAfterRecording() {
+    setState(() {
+      _recordingCompleted = false;
+      _recordedFilePath = null;
+      _latestAttempt = null;
+      _errorMessage = 'Recording discarded';
+      _successMessage = null;
+    });
+  }
+
+  void _showRecordingCompleteDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Recording Complete'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Listen to your recording and decide what to do:'),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: () => _playRecordedFile(),
+                  icon: Icon(_isPlayingPlayback ? Icons.pause_circle : Icons.play_circle),
+                  iconSize: 48,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 16),
+                IconButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _cancelAfterRecording();
+                  },
+                  icon: const Icon(Icons.cancel),
+                  iconSize: 48,
+                  color: AppColors.error,
+                ),
+                const SizedBox(width: 16),
+                IconButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showScore();
+                  },
+                  icon: const Icon(Icons.compare),
+                  iconSize: 48,
+                  color: AppColors.success,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Text('Play', style: TextStyle(fontSize: 12)),
+                Text('Cancel', style: TextStyle(fontSize: 12)),
+                Text('Compare', style: TextStyle(fontSize: 12)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _playRecordedFile() {
+    if (_isPlayingPlayback) {
+      _playbackPlayer.pause();
+      setState(() => _isPlayingPlayback = false);
+    } else {
+      _playbackPlayer.play(UrlSource(_recordedFilePath!));
+      setState(() => _isPlayingPlayback = true);
     }
   }
 
@@ -285,7 +430,7 @@ class _CompareWidgetState extends State<CompareWidget> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
-    final refUrl = widget.playableType == 'hymn' 
+    final refUrl = widget.isInteractive || widget.playableType == 'hymn' 
           ? provider.currentHymn?.hymn.audioUrl 
           : provider.currentHymn?.sections.where((s) => s.id == widget.playableId).firstOrNull?.audioUrl;
 
@@ -327,6 +472,7 @@ class _CompareWidgetState extends State<CompareWidget> {
                     value: _algorithm,
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                     items: const [
+                      DropdownMenuItem(value: 'dtw', child: Text('DTW')),
                       DropdownMenuItem(value: 'default', child: Text('Default')),
                       DropdownMenuItem(value: 'harmonic', child: Text('Harmonic')),
                     ],
@@ -432,6 +578,40 @@ class _CompareWidgetState extends State<CompareWidget> {
               ],
             ),
 
+          if (_recordingCompleted && !_isSubmitting)
+            Column(
+              children: [
+                const Text('Recording completed!', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _showScore,
+                        icon: const Icon(Icons.show_chart),
+                        label: const Text('Show Score'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _cancelAfterRecording,
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
           if (_isSubmitting)
             const Center(
               child: Column(
@@ -448,17 +628,28 @@ class _CompareWidgetState extends State<CompareWidget> {
             Container(
               margin: const EdgeInsets.only(top: 16),
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1), 
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                  const Icon(Icons.error_outline, color: AppColors.error, size: 16),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_errorMessage!, style: const TextStyle(color: Colors.red, fontSize: 12))),
+                  Expanded(child: Text(_errorMessage!, style: const TextStyle(color: AppColors.error, fontSize: 12))),
                 ],
               ),
             ),
 
-          if (_successMessage != null)
+          if (_latestAttempt != null && _latestAttempt!.score != null) ...[
+            const SizedBox(height: 16),
+            _buildFeedbackBadge(_latestAttempt!.score!),
+            if (_latestAttempt!.analysis?['length_penalty'] != null && 
+                (_latestAttempt!.analysis!['length_penalty']['penalty_percent'] ?? 0) > 0)
+              _buildLengthPenalty(_latestAttempt!.analysis!['length_penalty']),
+          ],
+
+          if (_successMessage != null && _latestAttempt == null)
             Container(
               margin: const EdgeInsets.only(top: 16),
               padding: const EdgeInsets.all(12),
@@ -467,7 +658,7 @@ class _CompareWidgetState extends State<CompareWidget> {
                 children: [
                   const Icon(Icons.check_circle_outline, color: AppColors.success, size: 16),
                   const SizedBox(width: 8),
-                  Text(_successMessage!, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
+                  Text(_successMessage!, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 12)),
                 ],
               ),
             ),
@@ -505,6 +696,16 @@ class _CompareWidgetState extends State<CompareWidget> {
                 children: [
                   _buildSubInfo('Reference notes', (_latestAttempt!.analysis!['note_sequences']?['reference'] as List?)?.join(', ') ?? 'None'),
                   _buildSubInfo('Recorded notes', (_latestAttempt!.analysis!['note_sequences']?['recorded'] as List?)?.join(', ') ?? 'None'),
+                  
+                  if (((_latestAttempt!.analysis!['note_sequences']?['reference'] as List?)?.isNotEmpty ?? false) || 
+                      ((_latestAttempt!.analysis!['note_sequences']?['recorded'] as List?)?.isNotEmpty ?? false))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: NoteComparisonGraph(
+                        referenceNotes: List<String>.from(_latestAttempt!.analysis!['note_sequences']?['reference'] ?? []),
+                        recordedNotes: List<String>.from(_latestAttempt!.analysis!['note_sequences']?['recorded'] ?? []),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -590,6 +791,94 @@ class _CompareWidgetState extends State<CompareWidget> {
             TextSpan(text: value.isEmpty ? 'None' : value),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFeedbackBadge(double score) {
+    Color color;
+    Color bgColor;
+    String label;
+    String emoji;
+
+    if (score >= 80) {
+      color = AppColors.great;
+      bgColor = AppColors.greatBg;
+      label = 'GREAT';
+      emoji = '🎉';
+    } else if (score >= 65) {
+      color = AppColors.good;
+      bgColor = AppColors.goodBg;
+      label = 'GOOD';
+      emoji = '👍';
+    } else {
+      color = AppColors.work;
+      bgColor = AppColors.workBg;
+      label = 'NEEDS WORK';
+      emoji = '💪';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$label: ${score.toStringAsFixed(1)}%',
+                style: AppTextStyles.headerSmall.copyWith(color: color, fontWeight: FontWeight.w900, fontSize: 18),
+              ),
+              Text(
+                'Performance accuracy',
+                style: AppTextStyles.caption.copyWith(color: color.withValues(alpha: 0.7), fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLengthPenalty(Map<String, dynamic> penalty) {
+    final double percent = (penalty['penalty_percent'] ?? 0).toDouble();
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.penaltyBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.penalty.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: AppColors.penalty),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Length Penalty: -${percent.toStringAsFixed(1)}%',
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.penalty, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Your recording duration differs significantly from the reference.',
+                  style: AppTextStyles.caption.copyWith(color: AppColors.penalty.withValues(alpha: 0.8), fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

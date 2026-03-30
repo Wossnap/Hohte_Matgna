@@ -25,40 +25,44 @@ class AppTheme {
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        elevation: 2,
+        shadowColor: AppColors.primary.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
         ),
-        textStyle: AppTextStyles.buttonLarge,
+        textStyle: AppTextStyles.buttonLarge.copyWith(fontWeight: FontWeight.bold),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.all(16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)), // Lighter gray border
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.primary, width: 2),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.error),
       ),
-      labelStyle: const TextStyle(color: AppColors.textSecondary),
-      hintStyle: const TextStyle(color: AppColors.textSecondary),
+      labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+      hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+      prefixIconColor: AppColors.textSecondary,
     ),
     cardTheme: CardThemeData(
-      elevation: 2,
+      elevation: 4,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       margin: const EdgeInsets.symmetric(vertical: 8),
     ),

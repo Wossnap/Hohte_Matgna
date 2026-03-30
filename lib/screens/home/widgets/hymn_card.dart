@@ -21,76 +21,71 @@ class HymnCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.greyCard,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.2), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title
+                // Title - Serif style simulation with weight
                 Text(
                   hymn.title,
                   style: AppTextStyles.headerSmall.copyWith(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
                     color: AppColors.textPrimary,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
 
                 // Tags Row (Category & Scale)
                 Wrap(
-                  spacing: 4,
-                  runSpacing: 4,
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
                     if (hymn.category != null)
-                      _buildMiniBadge(hymn.category!.name, AppColors.primary),
+                      _buildMiniBadge(hymn.category!.name, AppColors.accentGold),
                     if (hymn.scale != null)
-                      _buildMiniBadge(hymn.scale!.name, AppColors.secondary),
+                      _buildMiniBadge(hymn.scale!.name, AppColors.primary),
                   ],
                 ),
                 
-                const Spacer(),
-                
-                // Stats & Action
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildStatRow(Icons.play_circle_filled_rounded, '${hymn.plays} ${locale.translate('plays')}', AppColors.primary),
-                      const SizedBox(height: 4),
-                      _buildStatRow(Icons.school_rounded, '${hymn.practices} ${locale.translate('practices')}', AppColors.success),
-                      const Divider(height: 12, thickness: 0.5),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            locale.translate('practice'),
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: AppColors.primary),
-                        ],
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 16),
+                // Play & Practice Stat Labels in a column
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildStatLabel(
+                      icon: Icons.play_circle_fill,
+                      label: locale.translate('play'),
+                      count: hymn.plays,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildStatLabel(
+                      icon: Icons.history_edu,
+                      label: locale.translate('practice'),
+                      count: hymn.practices,
+                      color: AppColors.accentGreen,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -99,6 +94,49 @@ class HymnCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildStatLabel({required IconData icon, required String label, required int count, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$count',
+              style: AppTextStyles.caption.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 10,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Removed unused _buildStatBadge helper
 
   Widget _buildMiniBadge(String text, Color color) {
     return Container(
@@ -119,21 +157,5 @@ class HymnCard extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildStatRow(IconData icon, String value, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 6),
-        Text(
-          value,
-          style: AppTextStyles.caption.copyWith(
-            fontWeight: FontWeight.w700,
-            fontSize: 10,
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ],
-    );
-  }
 }
+

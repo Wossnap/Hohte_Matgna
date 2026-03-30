@@ -26,7 +26,7 @@ class PracticeService {
 
   /// Increment the play count for a hymn
   Future<void> incrementHymnPlay(int hymnId) async {
-    final response = await ApiClient.post('${ApiEndpoints.hymnPlay}/$hymnId/play');
+    final response = await ApiClient.post(ApiEndpoints.incrementHymnPlay(hymnId));
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('Failed to increment hymn play count');
@@ -35,8 +35,8 @@ class PracticeService {
 
   /// Increment the practice count for a hymn
   Future<void> incrementHymnPractice(int hymnId) async {
-    final response = await ApiClient.post('${ApiEndpoints.hymnPractice}/$hymnId/practice');
-
+    final response = await ApiClient.post(ApiEndpoints.incrementHymnPractice(hymnId));
+    
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('Failed to increment hymn practice count');
     }
@@ -44,7 +44,7 @@ class PracticeService {
 
   /// Increment the play count for a section
   Future<void> incrementSectionPlay(int sectionId) async {
-    final response = await ApiClient.post('${ApiEndpoints.sectionPlay}/$sectionId/play');
+    final response = await ApiClient.post(ApiEndpoints.incrementSectionPlay(sectionId));
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('Failed to increment section play count');
@@ -53,7 +53,7 @@ class PracticeService {
 
   /// Increment the practice count for a section
   Future<void> incrementSectionPractice(int sectionId) async {
-    final response = await ApiClient.post('${ApiEndpoints.sectionPractice}/$sectionId/practice');
+    final response = await ApiClient.post(ApiEndpoints.incrementSectionPractice(sectionId));
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('Failed to increment section practice count');
@@ -179,14 +179,14 @@ class PracticeService {
   }
 
   /// Poll for comparison results after submission
-  /// Polls every [intervalSeconds] until a result newer than [afterTimestamp] is found
-  /// or until [maxAttempts] is reached
+  /// Polls every [intervalSeconds] until a result with an ID different from [baselineAttemptId] is found
+  /// or until [maxAttempts] reached.
   Future<Attempt?> pollForResults({
     required String playableType,
     required int playableId,
-    required DateTime afterTimestamp,
-    int intervalSeconds = 3,
-    int maxAttempts = 40, // 2 minutes max
+    required int? baselineAttemptId,
+    int intervalSeconds = 2,
+    int maxAttempts = 210, // ~7 minutes like the website
   }) async {
     int attempts = 0;
 
@@ -199,8 +199,8 @@ class PracticeService {
           playableId: playableId,
         );
 
-        // Check if we got a new result
-        if (attempt != null && attempt.createdAt.isAfter(afterTimestamp)) {
+        // Check if we got a new result (different ID)
+        if (attempt != null && attempt.id != baselineAttemptId) {
           return attempt;
         }
       } catch (e) {

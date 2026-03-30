@@ -11,7 +11,7 @@ class PracticeHistoryWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.greyCard,
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
       ),
       child: ExpansionTile(

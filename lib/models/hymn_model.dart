@@ -1,19 +1,28 @@
-/// Core model representing a hymn, including metadata like title, plays, and practices.
-library;
+// Core model representing a hymn, including metadata like title, plays, and practices.
+
 import 'category_model.dart';
 import 'scale_model.dart';
+import '../core/utils/url_utils.dart';
 
 class Hymn {
   final int id;
   final String title;
   final String? description;
   final String? content; // Added for lyrics
+  final String? gameContent;
   final Category? category;
   final Scale? scale;
   final int plays;
   final int practices;
+  final int totalPlays;
+  final int totalPractices;
+  final int order;
   final String? audioUrl;
   final String? sheetMusicUrl;
+  final List<dynamic>? comparisonBreakpoints;
+  final int? bpm;
+  final List<double>? beatTimestamps;
+  final int? duration;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -22,22 +31,27 @@ class Hymn {
     required this.title,
     this.description,
     this.content,
+    this.gameContent,
     this.category,
     this.scale,
     required this.plays,
     required this.practices,
+    required this.totalPlays,
+    required this.totalPractices,
+    required this.order,
     this.audioUrl,
     this.sheetMusicUrl,
+    this.comparisonBreakpoints,
+    this.bpm,
+    this.beatTimestamps,
+    this.duration,
     this.createdAt,
     this.updatedAt,
   });
 
   static String? handleUrl(dynamic url) {
     if (url == null || url is! String) return null;
-    if (url.startsWith('http')) return url;
-    const baseUrl = 'https://hohte-matgna.batelew.com/storage';
-    final path = url.startsWith('/') ? url : '/$url';
-    return '$baseUrl$path';
+    return UrlUtils.resolveStorageUrl(url);
   }
 
   static String? stripHtml(String? html) {
@@ -51,50 +65,56 @@ class Hymn {
         .trim();
   }
 
-  factory Hymn.fromJson(Map<String, dynamic> json) {
+  factory Hymn.fromJson(Map<String, dynamic> json, [Map<String, dynamic>? progress]) {
+    // Handle potential Inertia/Laravel Resource wrappers
+    final data = json['data'] is Map<String, dynamic> ? json['data'] : json;
 
-    final id = json['id'] ?? 0;
-    final title = json['title'] ?? json['name'] ?? '';
-    final audioUrlRaw = json['audio_url'] ?? json['audio'] ?? json['audio_file'] ?? json['file_url'] ?? json['media_url'] ?? json['url'] ?? json['path'];
+    final id = data['id'] is num ? (data['id'] as num).toInt() : int.parse(data['id'].toString());
+    final title = data['title'] ?? '';
+    final audioUrlRaw = data['audio_url'] ?? data['audio'];
     final audioUrl = handleUrl(audioUrlRaw);
     
-    var contentRaw = json['lyrics_content'] ?? json['content'] ?? json['lyrics'] ?? json['text'] ?? json['body'] ?? json['description'];
+    var contentRaw = data['lyrics_content'] ?? data['lyrics'] ?? data['content'];
     
-    // Treat empty string or non-string as null for easier fallbacks
     if (contentRaw is! String || contentRaw.trim().isEmpty) {
       contentRaw = null;
     } else {
       contentRaw = stripHtml(contentRaw);
     }
-    
-    // Log audio URL status if needed
 
+    // Extract progress data if available
+    final hymnProgress = progress?['hymn'] ?? progress;
+    final int plays = hymnProgress?['play_count'] ?? data['hymn_play_count'] ?? data['plays'] ?? 0;
+    final int practices = hymnProgress?['practice_count'] ?? data['hymn_practice_count'] ?? data['practices'] ?? 0;
+    
     return Hymn(
       id: id,
       title: title,
-      description: json['description'] ?? json['desc'],
+      description: data['description'],
       content: contentRaw,
-      category: json['category'] is Map
-          ? Category.fromJson(json['category'])
+      gameContent: data['game_content'],
+      category: data['category'] is Map
+          ? Category.fromJson(data['category'])
           : null,
-      scale: json['scale'] is Map
-          ? Scale.fromJson(json['scale'])
+      scale: data['scale'] is Map
+          ? Scale.fromJson(data['scale'])
           : null,
-      plays: (json['plays'] as num?)?.toInt() ?? 
-             (json['play_count'] as num?)?.toInt() ?? 
-             (json['plays_count'] as num?)?.toInt() ?? 
-             (json['stats']?['plays'] as num?)?.toInt() ?? 0,
-      practices: (json['practices'] as num?)?.toInt() ?? 
-                 (json['practice_count'] as num?)?.toInt() ?? 
-                 (json['practices_count'] as num?)?.toInt() ?? 
-                 (json['stats']?['practices'] as num?)?.toInt() ?? 0,
+      plays: plays,
+      practices: practices,
+      totalPlays: data['plays'] != null ? (data['plays'] is num ? (data['plays'] as num).toInt() : int.parse(data['plays'].toString())) : 0,
+      totalPractices: data['practices'] != null ? (data['practices'] is num ? (data['practices'] as num).toInt() : int.parse(data['practices'].toString())) : 0,
+      order: (data['order'] as num?)?.toInt() ?? 0,
       audioUrl: audioUrl,
-      sheetMusicUrl: handleUrl(json['sheet_music_url'] ?? json['sheet_music']),
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+      sheetMusicUrl: handleUrl(data['sheet_music_url'] ?? data['sheet_music']),
+      comparisonBreakpoints: data['comparison_breakpoints'] is List ? List<dynamic>.from(data['comparison_breakpoints']) : null,
+      bpm: data['bpm'] is num ? (data['bpm'] as num).toInt() : null,
+      beatTimestamps: data['beat_timestamps'] is List ? (data['beat_timestamps'] as List).map((e) => (e as num).toDouble()).toList() : null,
+      duration: data['duration'] is num ? (data['duration'] as num).toInt() : null,
+      createdAt: data['created_at'] != null
+          ? DateTime.parse(data['created_at'])
           : null,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
+      updatedAt: data['updated_at'] != null
+          ? DateTime.parse(data['updated_at'])
           : null,
     );
   }
@@ -105,12 +125,18 @@ class Hymn {
       'title': title,
       'description': description,
       'content': content,
+      'game_content': gameContent,
       'category': category?.toJson(),
       'scale': scale?.toJson(),
       'plays': plays,
       'practices': practices,
+      'order': order,
       'audio_url': audioUrl,
       'sheet_music_url': sheetMusicUrl,
+      'comparison_breakpoints': comparisonBreakpoints,
+      'bpm': bpm,
+      'beat_timestamps': beatTimestamps,
+      'duration': duration,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };

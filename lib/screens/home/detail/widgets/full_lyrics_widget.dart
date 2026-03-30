@@ -11,7 +11,7 @@ class FullLyricsWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.greyCard,
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
       ),
       padding: const EdgeInsets.all(24),
@@ -56,3 +56,4 @@ class FullLyricsWidget extends StatelessWidget {
     );
   }
 }
+

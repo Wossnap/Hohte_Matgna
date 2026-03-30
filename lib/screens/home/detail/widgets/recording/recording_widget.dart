@@ -127,12 +127,14 @@ class _RecordingWidgetState extends State<RecordingWidget> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-            content: Text('Recording saved! Ready to submit for comparison.'),
-            backgroundColor: AppColors.success,
-            duration: Duration(seconds: 2),
-          ),
+              content: Text('Recording saved! Comparing...'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 2),
+            ),
           );
         }
+        // Automatically submit for comparison after recording stops
+        await _submitForComparison();
       }
     } catch (e) {
       debugPrint('Error stopping recording: $e');
@@ -187,24 +189,10 @@ class _RecordingWidgetState extends State<RecordingWidget> {
     final seconds = twoDigits(duration.inSeconds.remainder(60));
     return '$minutes:$seconds';
   }
-
-  Color _getScoreColor(double score) {
-    if (score >= 80) return AppColors.success;
-    if (score >= 60) return AppColors.warning;
-    return AppColors.error;
-  }
-
-  String _getScoreLabel(double score) {
-    if (score >= 90) return 'Excellent!';
-    if (score >= 80) return 'Great Job!';
-    if (score >= 70) return 'Good';
-    if (score >= 60) return 'Keep Practicing';
-    return 'Needs Improvement';
-  }
+  
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<PracticeProvider>(context);
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -260,7 +248,7 @@ class _RecordingWidgetState extends State<RecordingWidget> {
                           Icon(Icons.mic, size: 28),
                           SizedBox(width: 12),
                           Text(
-                            'Start Recording',
+                            'Record',
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -283,14 +271,14 @@ class _RecordingWidgetState extends State<RecordingWidget> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.stop, size: 28),
-                          const SizedBox(width: 12),
+                          Icon(Icons.stop, size: 28),
+                          SizedBox(width: 12),
                           Text(
                             _formatDuration(_recordingDuration),
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
                           ),
-                          const SizedBox(width: 8),
-                          const Text(
+                          SizedBox(width: 8),
+                          Text(
                             'Stop',
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
@@ -299,120 +287,22 @@ class _RecordingWidgetState extends State<RecordingWidget> {
                     ),
                   ),
 
-                if (_recordedFilePath != null && !_isRecording) ...[
+                if (_recordedFilePath != null && !_isRecording)
                   Expanded(
-                    child: Column(
-                      children: [
-                        if (provider.isPolling || provider.isUploading) ...[
-                           Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            child: Column(
-                              children: [
-                                LinearProgressIndicator(
-                                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  provider.isUploading ? 'Uploading Recording...' : 'Analyzing Performance...',
-                                  style: AppTextStyles.bodyMedium.copyWith(color: AppColors.primary),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ] else if (provider.latestAttempt != null) ...[
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: _getScoreColor(provider.latestAttempt!.score ?? 0).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: _getScoreColor(provider.latestAttempt!.score ?? 0).withValues(alpha: 0.3)),
-                            ),
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _buildLabelButton('Score', _getScoreColor(provider.latestAttempt!.score ?? 0)),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      '${provider.latestAttempt!.score?.toStringAsFixed(1)}%',
-                                      style: AppTextStyles.headerLarge.copyWith(
-                                        color: _getScoreColor(provider.latestAttempt!.score ?? 0),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _getScoreLabel(provider.latestAttempt!.score ?? 0),
-                                  style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    provider.clearComparisonState();
-                                    _startRecording();
-                                  },
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text('Try Again'),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    side: const BorderSide(color: AppColors.primary),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _showResultDialog(provider.latestAttempt!),
-                                  icon: const Icon(Icons.list_alt),
-                                  label: const Text('Details'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ] else ...[
-                          ElevatedButton.icon(
-                            onPressed: _submitForComparison,
-                            icon: const Icon(Icons.analytics_outlined),
-                            label: const Text('See Score'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              minimumSize: const Size(double.infinity, 50),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                _recordedFilePath = null;
-                              });
-                            },
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            label: const Text('Delete and Re-record'),
-                            style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
-                          ),
-                        ],
-                      ],
+                    child: ElevatedButton.icon(
+                      onPressed: _submitForComparison,
+                      icon: const Icon(Icons.compare),
+                      label: const Text('Compare'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 4,
+                        shadowColor: AppColors.primary.withValues(alpha: 0.5),
+                      ),
                     ),
                   ),
-                ],
               ],
             ),
           ],
@@ -421,21 +311,6 @@ class _RecordingWidgetState extends State<RecordingWidget> {
     );
   }
 
-  Widget _buildLabelButton(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
+  // Removed unused _buildLabelButton helper
 }
+

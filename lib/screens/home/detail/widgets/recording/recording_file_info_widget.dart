@@ -30,3 +30,4 @@ class RecordingFileInfoWidget extends StatelessWidget {
     );
   }
 }
+

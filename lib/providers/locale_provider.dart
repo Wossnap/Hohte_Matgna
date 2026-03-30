@@ -1,5 +1,5 @@
-/// Provider for managing app localization and language switching.
-library;
+// Provider for managing app localization and language switching.
+
 import 'package:flutter/material.dart';
 
 enum AppLanguage { english, amharic }
@@ -27,9 +27,11 @@ class LocaleProvider with ChangeNotifier {
 
   static const Map<String, String> _en = {
     'nav_hymns': 'Hymns',
-    'nav_history': 'History',
+    'nav_saints': 'Saints',
+    'nav_guzo': 'Guzo',
+    'nav_fund': 'Fund',
     'nav_profile': 'Profile',
-    'home_title': 'Hymn Library',
+    'home_title': 'ZEHOHTE',
     'search_hint': 'Search hymns...',
     'filter_category': 'Category',
     'filter_scale': 'Scale',
@@ -48,9 +50,11 @@ class LocaleProvider with ChangeNotifier {
 
   static const Map<String, String> _am = {
     'nav_hymns': 'መዝሙሮች',
-    'nav_history': 'ታሪክ',
+    'nav_saints': 'ቅዱሳን',
+    'nav_guzo': 'ጉዞ',
+    'nav_fund': 'ፈንድ',
     'nav_profile': 'መገለጫ',
-    'home_title': 'መዝሙር ቤት',
+    'home_title': 'ዘሆኅተ',
     'search_hint': 'መዝሙር ፈልግ...',
     'filter_category': 'ምድብ',
     'filter_scale': 'ቅኝት',

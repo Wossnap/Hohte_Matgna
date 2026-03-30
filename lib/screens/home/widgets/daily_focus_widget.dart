@@ -133,7 +133,7 @@ class _DailyFocusWidgetState extends State<DailyFocusWidget> {
                   ),
                 ),
               ),
-              const Icon(Icons.star_rounded, color: Colors.white70, size: 20),
+              const Icon(Icons.star_rounded, color: Colors.white70, size: 28),
             ],
           ),
           const SizedBox(height: 16),
@@ -171,9 +171,13 @@ class _DailyFocusWidgetState extends State<DailyFocusWidget> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppColors.primary,
-              elevation: 0,
+              elevation: 4,
+              shadowColor: Colors.black.withValues(alpha: 0.2),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: AppColors.accentGold.withValues(alpha: 0.3)),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -183,7 +187,7 @@ class _DailyFocusWidgetState extends State<DailyFocusWidget> {
                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
                 ),
                 const SizedBox(width: 8),
-                const Icon(Icons.play_arrow_rounded, size: 18),
+                const Icon(Icons.play_arrow_rounded, size: 24),
               ],
             ),
           ),
@@ -221,3 +225,4 @@ class _DailyFocusWidgetState extends State<DailyFocusWidget> {
     );
   }
 }
+

@@ -60,8 +60,16 @@ class ProfileScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.greyCard,
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -108,8 +116,16 @@ class ProfileScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.greyCard,
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,8 +142,16 @@ class ProfileScreen extends StatelessWidget {
   Widget _buildSettingsCard(LocaleProvider locale) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.greyCard,
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -172,13 +196,15 @@ class ProfileScreen extends StatelessWidget {
       icon: const Icon(Icons.logout_rounded),
       label: Text(locale.translate('settings_logout')),
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.greyCard,
+        backgroundColor: Colors.white,
         foregroundColor: AppColors.error,
         elevation: 0,
         padding: const EdgeInsets.symmetric(vertical: 16),
+        side: BorderSide(color: AppColors.accentGold.withValues(alpha: 0.1)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         textStyle: AppTextStyles.buttonMedium.copyWith(fontWeight: FontWeight.w800),
       ),
     );
   }
 }
+
