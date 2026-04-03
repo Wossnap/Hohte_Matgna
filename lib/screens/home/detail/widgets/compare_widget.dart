@@ -153,7 +153,8 @@ class _CompareWidgetState extends State<CompareWidget> {
       String? path;
       if (!kIsWeb) {
         final tempDir = await getTemporaryDirectory();
-        path = '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        // Use .wav extension when encoder is set to WAV on mobile
+        path = '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.wav';
       }
       
       await _audioRecorder.start(

@@ -129,6 +129,54 @@ class AuthService {
     }
   }
 
+  /// Update the authenticated user's profile (name/email).
+  Future<UserModel> updateProfile({required String name, required String email}) async {
+    try {
+      final response = await ApiClient.patch(ApiEndpoints.profile, body: {
+        'name': name,
+        'email': email,
+      }).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        // API may return the updated user object directly or under 'user'
+        final userJson = responseData['user'] ?? responseData;
+        final user = UserModel.fromJson(userJson);
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(AppConstants.userDataKey, jsonEncode(user.toJson()));
+
+        return user;
+      }
+
+      final Map<String, dynamic> errorData = jsonDecode(response.body);
+      throw Exception(errorData['message'] ?? 'Failed to update profile');
+    } on SocketException {
+      throw Exception('Network error: please check your internet connection.');
+    } on TimeoutException {
+      throw Exception('Request timed out. Please try again.');
+    }
+  }
+
+  /// Delete the authenticated user's account.
+  Future<void> deleteProfile() async {
+    try {
+      final response = await ApiClient.delete(ApiEndpoints.profile).timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+        return;
+      }
+
+      final Map<String, dynamic> errorData = jsonDecode(response.body);
+      throw Exception(errorData['message'] ?? 'Failed to delete profile');
+    } on SocketException {
+      throw Exception('Network error: please check your internet connection.');
+    } on TimeoutException {
+      throw Exception('Request timed out. Please try again.');
+    }
+  }
+
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(AppConstants.accessTokenKey);

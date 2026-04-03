@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'dart:io';
 import '../core/api/api_client.dart';
 import '../core/api/api_endpoints.dart';
 import '../models/hymn_detail_model.dart';
@@ -111,22 +113,79 @@ class PracticeService {
       }
       
       // Determine content type from headers or default to webm
-      final contentType = response.headers['content-type'] ?? 'audio/webm';
-      final extension = contentType.contains('wav') ? 'wav' : 'webm';
-      
+      final contentTypeHeader = response.headers['content-type'] ?? 'audio/webm';
+      final extension = contentTypeHeader.contains('wav')
+          ? 'wav'
+          : contentTypeHeader.contains('mpeg') || contentTypeHeader.contains('mp3')
+              ? 'mp3'
+              : contentTypeHeader.contains('ogg')
+                  ? 'ogg'
+                  : contentTypeHeader.contains('mp4')
+                      ? 'mp4'
+                      : 'webm';
+
       audioFile = http.MultipartFile.fromBytes(
         'audio',
         response.bodyBytes,
         filename: 'recording.$extension',
+        contentType: MediaType.parse(contentTypeHeader),
       );
     } else {
-      audioFile = await http.MultipartFile.fromPath(
-        'audio',
-        audioFilePath,
-      );
+      // Try to infer MIME type from file extension and provide explicit contentType
+      String ext = '';
+      try {
+        ext = audioFilePath.split('.').last.toLowerCase();
+      } catch (_) {
+        ext = '';
+      }
+
+      String subtype;
+      switch (ext) {
+        case 'wav':
+          subtype = 'wav';
+          break;
+        case 'mp3':
+          subtype = 'mpeg';
+          break;
+        case 'm4a':
+          subtype = 'x-m4a';
+          break;
+        case 'ogg':
+          subtype = 'ogg';
+          break;
+        case 'webm':
+          subtype = 'webm';
+          break;
+        case 'mp4':
+          subtype = 'mp4';
+          break;
+        default:
+          subtype = 'octet-stream';
+      }
+
+      final contentType = subtype == 'octet-stream' ? null : MediaType('audio', subtype);
+      final file = File(audioFilePath);
+      debugPrint('Preparing upload file: path=$audioFilePath exists=${file.existsSync()} size=${file.existsSync() ? file.lengthSync() : 0}');
+
+      final filenameToUse = 'recording.$ext';
+      if (contentType != null) {
+        audioFile = await http.MultipartFile.fromPath(
+          'audio',
+          audioFilePath,
+          filename: filenameToUse,
+          contentType: contentType,
+        );
+      } else {
+        audioFile = await http.MultipartFile.fromPath(
+          'audio',
+          audioFilePath,
+          filename: filenameToUse,
+        );
+      }
     }
 
-    final response = await ApiClient.postMultipart(
+    // First attempt: upload with the detected contentType
+    var response = await ApiClient.postMultipart(
       ApiEndpoints.compareAudio,
       fields: {
         'playable_type': playableType,
@@ -135,6 +194,59 @@ class PracticeService {
       },
       files: [audioFile],
     );
+
+    // If backend rejects due to mimetype validation, retry with common allowed content-types
+    if (response.statusCode == 422 && response.body.contains('The audio field must be a file of type')) {
+      final fallbackTypes = [
+        'audio/wav',
+        'audio/x-m4a',
+        'audio/mp4',
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/webm',
+        'audio/ogg',
+      ];
+
+      for (final ct in fallbackTypes) {
+        try {
+          final fallbackExt = ct.contains('mpeg') || ct.contains('mp3')
+              ? 'mp3'
+              : ct.contains('x-m4a') || ct.contains('mp4')
+                  ? 'm4a'
+                  : ct.contains('ogg')
+                      ? 'ogg'
+                      : ct.contains('wav')
+                          ? 'wav'
+                          : 'bin';
+
+          final tryFilename = 'recording.$fallbackExt';
+          debugPrint('Retry upload using content-type=$ct filename=$tryFilename');
+          final tryFile = await http.MultipartFile.fromPath(
+            'audio',
+            audioFilePath,
+            filename: tryFilename,
+            contentType: MediaType.parse(ct),
+          );
+
+          response = await ApiClient.postMultipart(
+            ApiEndpoints.compareAudio,
+            fields: {
+              'playable_type': playableType,
+              'playable_id': playableId.toString(),
+              'algorithm': algorithm,
+            },
+            files: [tryFile],
+          );
+
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            final decoded = jsonDecode(response.body);
+            return decoded['queued'] == true || decoded['success'] == true;
+          }
+        } catch (_) {
+          // ignore and try next content-type
+        }
+      }
+    }
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('Failed to submit audio comparison: ${response.body}');

@@ -5,6 +5,7 @@ import '../providers/locale_provider.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../models/user_model.dart';
+import '../services/auth_service.dart';
 
 /// Displays user profile information and settings.
 ///
@@ -22,6 +23,15 @@ class ProfileScreen extends StatelessWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(locale.translate('nav_profile'), style: AppTextStyles.headerMedium),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () async {
+              // Open edit dialog
+              await _showEditDialog(context, auth);
+            },
+          ),
+        ],
         elevation: 0,
         backgroundColor: Colors.transparent,
       ),
@@ -51,7 +61,97 @@ class ProfileScreen extends StatelessWidget {
           
           const SizedBox(height: 32),
           _buildLogoutButton(auth, locale),
+            const SizedBox(height: 16),
+            _buildDeleteButton(context, auth, locale),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showEditDialog(BuildContext context, AuthProvider auth) async {
+    final authService = AuthService();
+    final user = auth.user;
+    final nameController = TextEditingController(text: user?.name ?? '');
+    final emailController = TextEditingController(text: user?.email ?? '');
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Profile'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Name'),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Name required' : null,
+              ),
+              TextFormField(
+                controller: emailController,
+                decoration: const InputDecoration(labelText: 'Email'),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Email required' : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              final navigator = Navigator.of(ctx);
+              final messenger = ScaffoldMessenger.of(ctx);
+              try {
+                await authService.updateProfile(
+                  name: nameController.text.trim(),
+                  email: emailController.text.trim(),
+                );
+                // Refresh provider
+                await auth.checkAuthStatus();
+                navigator.pop();
+                messenger.showSnackBar(const SnackBar(content: Text('Profile updated')));
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(content: Text('Update failed: $e')));
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeleteButton(BuildContext context, AuthProvider auth, LocaleProvider locale) {
+    return Center(
+      child: TextButton(
+        onPressed: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Delete Account'),
+              content: const Text('This action will permanently delete your account. Continue?'),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
+              ],
+            ),
+          );
+
+          if (confirm != true) return;
+
+          final authService = AuthService();
+          try {
+            await authService.deleteProfile();
+            await auth.logout();
+          } catch (e) {
+            messenger.showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+          }
+        },
+        child: Text('Delete Account', style: TextStyle(color: AppColors.error)),
       ),
     );
   }

@@ -51,6 +51,43 @@ class ApiClient {
     return response;
   }
 
+  /// Performs a PATCH request to the specified [endpoint].
+  static Future<http.Response> patch(String endpoint, {Map<String, dynamic>? body}) async {
+    final headers = await _getHeaders();
+    final uri = Uri.parse('$baseUrl$endpoint');
+
+    debugPrint('ApiClient PATCH: $uri');
+    if (body != null) debugPrint('ApiClient Body: ${jsonEncode(body)}');
+
+    final response = await http.patch(
+      uri,
+      headers: headers,
+      body: body != null ? jsonEncode(body) : null,
+    );
+    _handleResponse(response);
+
+    return response;
+  }
+
+  /// Performs a DELETE request to the specified [endpoint].
+  static Future<http.Response> delete(String endpoint, {Map<String, dynamic>? queryParams, Map<String, dynamic>? body}) async {
+    final headers = await _getHeaders();
+    final uri = Uri.parse('$baseUrl$endpoint').replace(
+      queryParameters: queryParams?.map((key, value) => MapEntry(key, value.toString())),
+    );
+
+    debugPrint('ApiClient DELETE: $uri');
+
+    // Some servers expect a body with DELETE; http.delete supports body from Dart 2.14+
+    final response = await http.delete(
+      uri,
+      headers: headers,
+    );
+    _handleResponse(response);
+
+    return response;
+  }
+
   /// Performs a multipart POST request. Supports both automated file loading from path
   /// and manual MultipartFile injection (useful for Web/Bytes).
   static Future<http.Response> postMultipart(
@@ -67,12 +104,22 @@ class ApiClient {
     
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll(headers);
+
+    // MultipartRequest will set its own Content-Type with boundary.
+    // Remove any fixed JSON Content-Type header coming from _getHeaders().
+    request.headers.remove('Content-Type');
+
+    // Debug: print headers and file content types for troubleshooting
+    debugPrint('Multipart request headers before adding files: ${request.headers}');
     
     if (fields != null) {
       request.fields.addAll(fields);
     }
     
     if (files != null) {
+      for (final f in files) {
+        debugPrint('Adding multipart file: field=${f.field}, filename=${f.filename}, contentType=${f.contentType}');
+      }
       request.files.addAll(files);
     } else if (filePath != null && fieldName != null) {
       request.files.add(await http.MultipartFile.fromPath(fieldName, filePath));

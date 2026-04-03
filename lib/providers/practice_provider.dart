@@ -170,7 +170,8 @@ class PracticeProvider with ChangeNotifier {
     } catch (e) {
       _comparisonError = e.toString();
       debugPrint('Error in audio comparison: $e');
-      return null;
+      // Rethrow so callers (UI) can present the underlying error message
+      rethrow;
     } finally {
       _isUploading = false;
       _isPolling = false;
