@@ -66,15 +66,17 @@ class _RecordingWidgetState extends State<RecordingWidget> {
       if (!kIsWeb) {
         final tempDir = await getTemporaryDirectory();
         final timestamp = DateTime.now().millisecondsSinceEpoch;
-        filePath = '${tempDir.path}/recording_$timestamp.wav';
+        // Use WebM/Opus on mobile to match website behavior
+        filePath = '${tempDir.path}/recording_$timestamp.webm';
       }
 
       await _audioRecorder.start(
         RecordConfig(
-          encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.pcm16bits,
+          // Use Opus encoder on both web and mobile so uploaded file is webm/opus
+          encoder: AudioEncoder.opus,
           bitRate: 128000,
           sampleRate: 44100,
-          numChannels: 1, // Mono is usually better for analysis
+          numChannels: 1,
         ),
         path: filePath ?? '',
       );
