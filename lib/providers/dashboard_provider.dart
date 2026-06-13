@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/hymn_model.dart';
+import '../models/playlist_model.dart';
 import '../services/dashboard_service.dart';
 
 class DashboardProvider with ChangeNotifier {
@@ -7,11 +8,13 @@ class DashboardProvider with ChangeNotifier {
 
   List<Hymn> _continueHymns = [];
   List<Hymn> _recentHymns = [];
+  List<PlaylistSummary> _playlists = [];
   bool _isLoading = false;
   bool _isAuthInitialized = false;
 
   List<Hymn> get continueHymns => _continueHymns;
   List<Hymn> get recentHymns => _recentHymns;
+  List<PlaylistSummary> get playlists => _playlists;
   bool get isLoading => _isLoading;
 
   void update(bool isAuthenticated) {
@@ -22,6 +25,7 @@ class DashboardProvider with ChangeNotifier {
       _isAuthInitialized = false;
       _continueHymns = [];
       _recentHymns = [];
+      _playlists = [];
       notifyListeners();
     }
   }
@@ -33,6 +37,7 @@ class DashboardProvider with ChangeNotifier {
       final data = await _service.getDashboardData();
       _continueHymns = data.continueHymns;
       _recentHymns = data.recentHymns;
+      _playlists = data.playlists;
     } catch (e) {
       debugPrint('DashboardProvider error: $e');
     } finally {
