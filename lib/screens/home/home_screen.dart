@@ -13,6 +13,7 @@ import './widgets/filter_bar.dart';
 import './widgets/search_field.dart';
 import './widgets/daily_focus_widget.dart';
 import './widgets/continue_practicing_widget.dart';
+import './widgets/recently_added_widget.dart';
 import './detail/hymn_detail_screen.dart';
 
 /// The home dashboard displaying the list of hymns.
@@ -98,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const FilterBar(),
           const SizedBox(height: 24),
           const ContinuePracticingWidget(),
+          const RecentlyAddedWidget(),
           // const DailyFocusWidget(),
           
           if (hymnProvider.hymns.isEmpty)
