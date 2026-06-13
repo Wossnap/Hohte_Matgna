@@ -63,7 +63,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline,
                 color: AppColors.error,
                 size: 20,
@@ -91,11 +91,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppColors.background, Colors.white],
+            colors: [AppColors.background, AppColors.cardBackground],
           ),
         ),
         child: SingleChildScrollView(
@@ -115,7 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: SvgPicture.asset(
                       'assets/images/Hohte_logo.svg',
                       height: 80,
-                      colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+                      colorFilter: ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
                     ),
                   ),
                 ),

@@ -129,7 +129,7 @@ class _LyricsGameWidgetState extends State<LyricsGameWidget> {
             children: [
               Text(
                 'Line ${_currentLineIndex + 1} of ${_lines.length}',
-                style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.bold, color: AppColors.primary),
+                style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.bold, color: AppColors.primaryAccent),
               ),
               TextButton(onPressed: widget.onReset, child: const Text('Reset Game')),
             ],

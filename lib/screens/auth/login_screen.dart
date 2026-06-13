@@ -57,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline,
                 color: AppColors.error,
                 size: 20,
@@ -85,11 +85,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppColors.background, Colors.white],
+            colors: [AppColors.background, AppColors.cardBackground],
           ),
         ),
         child: SingleChildScrollView(
@@ -109,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: SvgPicture.asset(
                       'assets/images/Hohte_logo.svg',
                       height: 100,
-                      colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+                      colorFilter: ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
                     ),
                   ),
                 ),

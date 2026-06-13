@@ -153,7 +153,7 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Text('No interactive lyrics available'),
@@ -220,12 +220,12 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
             decoration: BoxDecoration(
               border: Border.all(color: AppColors.border),
               borderRadius: BorderRadius.circular(20),
-              color: Colors.white,
+              color: AppColors.cardBackground,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.access_time, size: 16, color: AppColors.primary),
+                Icon(Icons.access_time, size: 16, color: AppColors.primaryAccent),
                 const SizedBox(width: 8),
                 Text(
                   _formatDuration(_position), 
@@ -241,7 +241,7 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
         // Horizontal Lyrics List
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.cardBackground,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.border),
           ),
@@ -302,17 +302,17 @@ class _SegmentItemState extends State<_SegmentItem> {
           margin: const EdgeInsets.only(right: 12),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: widget.isPlaying 
-                ? AppColors.primary.withValues(alpha: 0.1) 
-                : (_isHovered ? AppColors.primary.withValues(alpha: 0.05) : Colors.white),
+            color: widget.isPlaying
+                ? AppColors.primaryAccent.withValues(alpha: 0.12)
+                : (_isHovered ? AppColors.primaryAccent.withValues(alpha: 0.06) : AppColors.cardBackground),
             border: Border.all(
-              color: widget.isPlaying ? AppColors.primary : AppColors.border,
+              color: widget.isPlaying ? AppColors.primaryAccent : AppColors.border,
               width: widget.isPlaying ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(8),
             boxShadow: widget.isPlaying ? [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.2),
+                color: AppColors.primaryAccent.withValues(alpha: 0.2),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -324,7 +324,7 @@ class _SegmentItemState extends State<_SegmentItem> {
               Text(
                 widget.segment.text,
                 style: AppTextStyles.bodyMedium.copyWith(
-                  color: widget.isPlaying ? AppColors.primary : AppColors.textPrimary,
+                  color: widget.isPlaying ? AppColors.primaryAccent : AppColors.textPrimary,
                   fontWeight: widget.isPlaying ? FontWeight.bold : FontWeight.normal,
                 ),
                 textAlign: TextAlign.center,
@@ -334,7 +334,7 @@ class _SegmentItemState extends State<_SegmentItem> {
                 Icon(
                   Icons.mic,
                   size: 16,
-                  color: widget.isPlaying ? AppColors.primary : AppColors.textSecondary,
+                  color: widget.isPlaying ? AppColors.primaryAccent : AppColors.textSecondary,
                 ),
               ],
             ],

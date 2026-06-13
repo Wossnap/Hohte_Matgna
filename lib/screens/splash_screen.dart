@@ -28,7 +28,7 @@ class SplashScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.music_note,
                 size: 60,
                 color: AppColors.primary,

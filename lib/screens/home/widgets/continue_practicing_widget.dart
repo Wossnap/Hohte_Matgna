@@ -30,7 +30,7 @@ class ContinuePracticingWidget extends StatelessWidget {
             fontSize: 13,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.8,
-            color: AppColors.primary.withValues(alpha: 0.8),
+            color: AppColors.primaryAccent.withValues(alpha: 0.8),
           ),
         ),
         const SizedBox(height: 10),

@@ -24,7 +24,7 @@ class RecordingStatusWidget extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.fiber_manual_record, color: AppColors.error, size: 48),
+          Icon(Icons.fiber_manual_record, color: AppColors.error, size: 48),
           const SizedBox(height: 8),
           Text(
             'Recording...',

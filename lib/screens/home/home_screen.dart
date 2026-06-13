@@ -77,18 +77,22 @@ class _HomeScreenState extends State<HomeScreen> {
         title: SvgPicture.asset(
           'assets/images/Hohte_logo.svg',
           height: 36,
+          // Logo artwork is dark navy; tint it white on dark so it stays visible.
+          colorFilter: appIsDark
+              ? const ColorFilter.mode(Colors.white, BlendMode.srcIn)
+              : null,
         ),
         actions: [
           IconButton(
             icon: Icon(
               _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
               size: 26,
-              color: AppColors.primary,
+              color: AppColors.primaryAccent,
             ),
             onPressed: () => setState(() => _isGridView = !_isGridView),
           ),
           IconButton(
-            icon: const Icon(Icons.refresh, size: 26, color: AppColors.primary),
+            icon: Icon(Icons.refresh, size: 26, color: AppColors.primaryAccent),
             onPressed: _refresh,
           ),
         ],

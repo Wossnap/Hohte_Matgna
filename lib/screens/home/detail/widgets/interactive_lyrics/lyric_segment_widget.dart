@@ -95,10 +95,10 @@ class _LyricSegmentWidgetState extends State<LyricSegmentWidget>
                 curve: Curves.easeOutCubic,
                 padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                 decoration: BoxDecoration(
-                  color: isHighlight ? AppColors.secondary.withValues(alpha: 0.08) : Colors.white,
+                  color: isHighlight ? AppColors.secondary.withValues(alpha: 0.08) : AppColors.cardBackground,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isHighlight ? AppColors.secondary : Colors.grey.withValues(alpha: 0.2),
+                    color: isHighlight ? AppColors.secondary : AppColors.divider,
                     width: isHighlight ? 1.5 : 1,
                   ),
                   boxShadow: isHighlight ? [

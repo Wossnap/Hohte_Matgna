@@ -133,10 +133,10 @@ class _MetronomeWidgetState extends State<MetronomeWidget> with SingleTickerProv
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: _isActive ? AppColors.primary.withValues(alpha: 0.05) : Colors.transparent,
+        color: _isActive ? AppColors.primaryAccent.withValues(alpha: 0.05) : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: _isActive ? AppColors.primary.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2),
+          color: _isActive ? AppColors.primaryAccent.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2),
         ),
       ),
       child: Row(
@@ -150,10 +150,10 @@ class _MetronomeWidgetState extends State<MetronomeWidget> with SingleTickerProv
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _isActive ? AppColors.primary.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
+                    color: _isActive ? AppColors.primaryAccent.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: _isActive ? AppColors.primary.withValues(alpha: 0.3) : Colors.transparent,
+                      color: _isActive ? AppColors.primaryAccent.withValues(alpha: 0.3) : Colors.transparent,
                     ),
                   ),
                   child: Row(
@@ -162,13 +162,13 @@ class _MetronomeWidgetState extends State<MetronomeWidget> with SingleTickerProv
                       Icon(
                         Icons.music_note,
                         size: 16,
-                        color: _isActive ? AppColors.primary : Colors.grey,
+                        color: _isActive ? AppColors.primaryAccent : Colors.grey,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         widget.bpm != null ? '${widget.bpm} BPM' : 'Auto Tempo',
                         style: AppTextStyles.bodySmall.copyWith(
-                          color: _isActive ? AppColors.primary : Colors.grey,
+                          color: _isActive ? AppColors.primaryAccent : Colors.grey,
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
                         ),
@@ -226,7 +226,7 @@ class _MetronomeWidgetState extends State<MetronomeWidget> with SingleTickerProv
                     onChanged: (val) {
                       setState(() => _soundEnabled = val);
                     },
-                    activeThumbColor: AppColors.primary,
+                    activeThumbColor: AppColors.primaryAccent,
                   ),
                 ),
               ],

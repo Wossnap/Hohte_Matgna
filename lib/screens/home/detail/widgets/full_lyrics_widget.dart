@@ -28,7 +28,7 @@ class FullLyricsWidget extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: () {}, // Future feature
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF0EBEB), // Faded background
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.08),
                   foregroundColor: AppColors.primary,
                   elevation: 0,
                   side: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),

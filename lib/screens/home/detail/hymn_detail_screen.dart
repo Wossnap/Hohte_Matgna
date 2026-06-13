@@ -97,7 +97,7 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                       StretchMode.blurBackground,
                     ],
                     background: Container(
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
@@ -106,7 +106,7 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                             AppColors.primary,
                             AppColors.secondary,
                           ],
-                          stops: [0.0, 0.7, 1.0],
+                          stops: const [0.0, 0.7, 1.0],
                         ),
                       ),
                       child: SafeArea(
@@ -143,7 +143,7 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                               style: AppTextStyles.headerMedium.copyWith(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w900,
-                                color: AppColors.primary,
+                                color: AppColors.primaryAccent,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -190,7 +190,7 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                               icon: const Icon(Icons.unfold_more_rounded, size: 18),
                               label: const Text('Expand All'),
                               style: TextButton.styleFrom(
-                                foregroundColor: AppColors.primary,
+                                foregroundColor: AppColors.primaryAccent,
                                 textStyle: const TextStyle(fontWeight: FontWeight.bold),
                               ),
                             ),
@@ -246,12 +246,12 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.music_note, color: AppColors.primary),
+                  Icon(Icons.music_note, color: AppColors.primaryAccent),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text('ዋና (Main Melody)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
-                  Icon(_isMainMelodyExpanded ? Icons.expand_more : Icons.chevron_right, color: AppColors.primary),
+                  Icon(_isMainMelodyExpanded ? Icons.expand_more : Icons.chevron_right, color: AppColors.primaryAccent),
                 ],
               ),
             ),
@@ -283,13 +283,13 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Lyrics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                      Text('Lyrics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryAccent)),
                       OutlinedButton.icon(
                         onPressed: viewModel.toggleLyricsGame,
                         icon: Icon(viewModel.showLyricsGame ? Icons.menu_book : Icons.videogame_asset),
                         label: Text(viewModel.showLyricsGame ? 'Show Lyrics' : 'Play Game'),
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.primary),
+                          side: BorderSide(color: AppColors.primaryAccent),
                           foregroundColor: AppColors.primary,
                         ),
                       ),
@@ -328,16 +328,16 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                   const SizedBox(height: 24),
 
                   // Full Lyrics Display Section
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.notes_rounded, color: AppColors.primary, size: 20),
-                      SizedBox(width: 8),
+                      Icon(Icons.notes_rounded, color: AppColors.primaryAccent, size: 20),
+                      const SizedBox(width: 8),
                       Text(
                         'Full Lyrics',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
+                          color: AppColors.primaryAccent,
                         ),
                       ),
                     ],
@@ -373,7 +373,7 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
   Widget _buildGameStat(String label, String value) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primary)),
+        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryAccent)),
         Text(label, style: AppTextStyles.caption),
       ],
     );

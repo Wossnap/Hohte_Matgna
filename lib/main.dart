@@ -13,6 +13,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'providers/locale_provider.dart';
 import 'providers/dashboard_provider.dart';
+import 'providers/theme_provider.dart';
 
 import 'dart:async';
 
@@ -53,12 +54,26 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(create: (_) => PracticeProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: MaterialApp(
-        title: 'Hohte Matgna',
-        theme: AppTheme.lightTheme,
-        debugShowCheckedModeBanner: false,
-        home: const AppWrapper(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          return MaterialApp(
+            // Colors come from the global `activePalette` (not Theme.of), so
+            // cached/inactive subtrees won't repaint on a theme change on their
+            // own. Keying on the resolved brightness forces a full rebuild so
+            // every screen (bottom nav, inactive tabs) flips at once. Toggling
+            // is rare and only reachable from the Profile tab, so there are no
+            // pushed routes to lose.
+            key: ValueKey(themeProvider.isDark),
+            title: 'Hohte Matgna',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProvider.themeMode,
+            debugShowCheckedModeBanner: false,
+            home: const AppWrapper(),
+          );
+        },
       ),
     );
   }

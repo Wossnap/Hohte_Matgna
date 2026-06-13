@@ -351,7 +351,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.15)),
         boxShadow: [
@@ -366,11 +366,11 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_isLoading)
-            const Column(
+            Column(
               children: [
-                Center(child: CircularProgressIndicator()),
-                SizedBox(height: 8),
-                Text('Pre-buffering audio...', style: TextStyle(fontSize: 10, color: AppColors.primary)),
+                const Center(child: CircularProgressIndicator()),
+                const SizedBox(height: 8),
+                Text('Pre-buffering audio...', style: TextStyle(fontSize: 10, color: AppColors.primaryAccent)),
               ],
             )
           else ...[
@@ -379,9 +379,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
               children: [
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: AppColors.primary,
-                    inactiveTrackColor: AppColors.primary.withValues(alpha: 0.1),
-                    thumbColor: AppColors.primary,
+                    activeTrackColor: AppColors.primaryAccent,
+                    inactiveTrackColor: AppColors.primaryAccent.withValues(alpha: 0.2),
+                    thumbColor: AppColors.primaryAccent,
                     trackHeight: 4,
                     thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                     overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
@@ -413,7 +413,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.download_rounded, color: AppColors.primary),
+                      icon: Icon(Icons.download_rounded, color: AppColors.primaryAccent),
                       onPressed: _downloadAudio,
                       tooltip: 'Download Audio',
                       constraints: const BoxConstraints(),
@@ -490,7 +490,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.cardBackground,
       border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
             borderRadius: BorderRadius.circular(4),
           ),

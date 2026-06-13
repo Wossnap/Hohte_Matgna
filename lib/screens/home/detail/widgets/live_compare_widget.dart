@@ -175,7 +175,7 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.compare_arrows, size: 16, color: AppColors.primary),
+                Icon(Icons.compare_arrows, size: 16, color: AppColors.primaryAccent),
                 const SizedBox(width: 8),
                 Text(
                   _phase == 'reference' ? 'Reference' : 'Recorded',

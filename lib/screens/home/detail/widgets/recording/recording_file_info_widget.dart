@@ -15,7 +15,7 @@ class RecordingFileInfoWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle, color: AppColors.success, size: 24),
+          Icon(Icons.check_circle, color: AppColors.success, size: 24),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

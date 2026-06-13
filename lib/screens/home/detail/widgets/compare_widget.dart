@@ -296,7 +296,7 @@ class _CompareWidgetState extends State<CompareWidget> {
           children: [
             Text(
               'Score: ${attempt.score?.toStringAsFixed(1)}%',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primary),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryAccent),
             ),
             const SizedBox(height: 16),
             const Text('Listen to your recording:'),
@@ -305,7 +305,7 @@ class _CompareWidgetState extends State<CompareWidget> {
               onPressed: () => _playRecordedFile(),
               icon: Icon(_isPlayingPlayback ? Icons.pause_circle : Icons.play_circle),
               iconSize: 48,
-              color: AppColors.primary,
+              color: AppColors.primaryAccent,
             ),
             if ((attempt.analysis?['note_sequences']?['reference'] as List?)?.isNotEmpty ?? false)
               Padding(
@@ -363,7 +363,7 @@ class _CompareWidgetState extends State<CompareWidget> {
                   onPressed: () => _playRecordedFile(),
                   icon: Icon(_isPlayingPlayback ? Icons.pause_circle : Icons.play_circle),
                   iconSize: 48,
-                  color: AppColors.primary,
+                  color: AppColors.primaryAccent,
                 ),
                 const SizedBox(width: 16),
                 IconButton(
@@ -511,12 +511,12 @@ class _CompareWidgetState extends State<CompareWidget> {
                 children: [
                   Text(
                     'Get Ready!',
-                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 14),
+                    style: TextStyle(color: AppColors.primaryAccent, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '$_countdown',
-                    style: AppTextStyles.headerLarge.copyWith(color: AppColors.primary, fontSize: 48),
+                    style: AppTextStyles.headerLarge.copyWith(color: AppColors.primaryAccent, fontSize: 48),
                   ),
                 ],
               ),
@@ -637,9 +637,9 @@ class _CompareWidgetState extends State<CompareWidget> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline, color: AppColors.error, size: 16),
+                  Icon(Icons.error_outline, color: AppColors.error, size: 16),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_errorMessage!, style: const TextStyle(color: AppColors.error, fontSize: 12))),
+                  Expanded(child: Text(_errorMessage!, style: TextStyle(color: AppColors.error, fontSize: 12))),
                 ],
               ),
             ),
@@ -659,9 +659,9 @@ class _CompareWidgetState extends State<CompareWidget> {
               decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline, color: AppColors.success, size: 16),
+                  Icon(Icons.check_circle_outline, color: AppColors.success, size: 16),
                   const SizedBox(width: 8),
-                  Text(_successMessage!, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 12)),
+                  Text(_successMessage!, style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 12)),
                 ],
               ),
             ),
@@ -776,7 +776,7 @@ class _CompareWidgetState extends State<CompareWidget> {
         TextButton(
           onPressed: onTap,
           style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-          child: Text(title, style: TextStyle(fontSize: 12, color: AppColors.primary, decoration: TextDecoration.underline)),
+          child: Text(title, style: TextStyle(fontSize: 12, color: AppColors.primaryAccent, decoration: TextDecoration.underline)),
         ),
         if (isActive) Padding(padding: const EdgeInsets.only(top: 8, bottom: 8), child: content),
       ],
@@ -864,7 +864,7 @@ class _CompareWidgetState extends State<CompareWidget> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: AppColors.penalty),
+          Icon(Icons.warning_amber_rounded, color: AppColors.penalty),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

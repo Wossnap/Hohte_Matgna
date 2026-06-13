@@ -131,7 +131,7 @@ class _SearchFieldState extends State<SearchField> {
           child: Material(
             elevation: 6,
             borderRadius: BorderRadius.circular(12),
-            color: Colors.white,
+            color: AppColors.cardBackground,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 220),
               child: ListView.separated(
@@ -203,7 +203,7 @@ class _SearchFieldState extends State<SearchField> {
       child: Container(
         height: 52,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.3)),
           boxShadow: [
@@ -220,12 +220,12 @@ class _SearchFieldState extends State<SearchField> {
           decoration: InputDecoration(
             hintText: locale.translate('search_hint'),
             hintStyle: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textSecondary.withValues(alpha: 0.5),
+              color: AppColors.textSecondary.withValues(alpha: 0.75),
               fontWeight: FontWeight.w500,
             ),
             prefixIcon: Icon(
               Icons.search_rounded,
-              color: AppColors.primary.withValues(alpha: 0.7),
+              color: AppColors.primaryAccent.withValues(alpha: 0.7),
               size: 28,
             ),
             suffixIcon: ValueListenableBuilder<TextEditingValue>(

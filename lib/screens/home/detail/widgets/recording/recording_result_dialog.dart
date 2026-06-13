@@ -37,10 +37,10 @@ class RecordingResultDialog extends StatelessWidget {
       contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       title: Row(
-        children: const [
-          Icon(Icons.analytics, color: AppColors.primary),
-          SizedBox(width: 8),
-          Text('Practice Score', style: TextStyle(fontWeight: FontWeight.bold)),
+        children: [
+          Icon(Icons.analytics, color: AppColors.primaryAccent),
+          const SizedBox(width: 8),
+          const Text('Practice Score', style: TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
       content: Column(
@@ -82,7 +82,7 @@ class RecordingResultDialog extends StatelessWidget {
               'Feedback',
               style: AppTextStyles.bodyMedium.copyWith(
                 fontWeight: FontWeight.w700,
-                color: AppColors.primary,
+                color: AppColors.primaryAccent,
               ),
             ),
             const SizedBox(height: 6),
@@ -109,7 +109,7 @@ class RecordingResultDialog extends StatelessWidget {
                 onPressed: onClose,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textPrimary,
-                  side: const BorderSide(color: AppColors.primary),
+                  side: BorderSide(color: AppColors.primaryAccent),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),

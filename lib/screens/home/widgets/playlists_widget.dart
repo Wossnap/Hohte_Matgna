@@ -29,7 +29,7 @@ class PlaylistsWidget extends StatelessWidget {
             fontSize: 13,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.8,
-            color: AppColors.primary.withValues(alpha: 0.8),
+            color: AppColors.primaryAccent.withValues(alpha: 0.8),
           ),
         ),
         const SizedBox(height: 10),
@@ -152,7 +152,7 @@ class _PlaylistCard extends StatelessWidget {
             children: [
               Text(
                 '${playlist.completedCount} / ${playlist.hymnsCount}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10,
                   color: AppColors.textSecondary,
                 ),
@@ -162,7 +162,7 @@ class _PlaylistCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  color: playlist.isCompleted ? AppColors.success : AppColors.primary,
+                  color: playlist.isCompleted ? AppColors.success : AppColors.primaryAccent,
                 ),
               ),
             ],
@@ -175,7 +175,7 @@ class _PlaylistCard extends StatelessWidget {
               minHeight: 5,
               backgroundColor: AppColors.shimmerBase,
               valueColor: AlwaysStoppedAnimation<Color>(
-                playlist.isCompleted ? AppColors.success : AppColors.primary,
+                playlist.isCompleted ? AppColors.success : AppColors.primaryAccent,
               ),
             ),
           ),
@@ -185,6 +185,6 @@ class _PlaylistCard extends StatelessWidget {
   }
 
   Widget _musicIcon() {
-    return const Icon(Icons.queue_music, size: 18, color: AppColors.primary);
+    return Icon(Icons.queue_music, size: 18, color: AppColors.primaryAccent);
   }
 }

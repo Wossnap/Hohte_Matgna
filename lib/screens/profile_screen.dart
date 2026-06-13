@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_provider.dart';
+import '../providers/theme_provider.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../models/user_model.dart';
@@ -57,7 +58,7 @@ class ProfileScreen extends StatelessWidget {
             style: AppTextStyles.headerSmall.copyWith(fontSize: 18),
           ),
           const SizedBox(height: 16),
-          _buildSettingsCard(locale),
+          _buildSettingsCard(context, locale),
           
           const SizedBox(height: 32),
           _buildLogoutButton(auth, locale),
@@ -230,7 +231,7 @@ class ProfileScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.primary, size: 28),
+          Icon(icon, color: AppColors.primaryAccent, size: 28),
           const SizedBox(height: 16),
           Text(value, style: AppTextStyles.headerMedium.copyWith(fontWeight: FontWeight.w900, fontSize: 24)),
           Text(label, style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700)),
@@ -239,7 +240,8 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSettingsCard(LocaleProvider locale) {
+  Widget _buildSettingsCard(BuildContext context, LocaleProvider locale) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
@@ -265,8 +267,90 @@ class ProfileScreen extends StatelessWidget {
               );
             },
           ),
+          Divider(height: 1, color: AppColors.divider, indent: 16, endIndent: 16),
+          _buildSettingTile(
+            'Appearance',
+            _themeModeLabel(themeProvider.themeMode),
+            themeProvider.isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+            onTap: () => _showThemePicker(context, themeProvider),
+          ),
         ],
       ),
+    );
+  }
+
+  String _themeModeLabel(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return 'System';
+      case ThemeMode.light:
+        return 'Light';
+      case ThemeMode.dark:
+        return 'Dark';
+    }
+  }
+
+  Future<void> _showThemePicker(
+      BuildContext context, ThemeProvider themeProvider) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Appearance',
+                      style: AppTextStyles.headerSmall.copyWith(fontSize: 16)),
+                ),
+              ),
+              ...ThemeMode.values.map((mode) {
+                final selected = themeProvider.themeMode == mode;
+                return ListTile(
+                  leading: Icon(
+                    mode == ThemeMode.system
+                        ? Icons.brightness_auto_rounded
+                        : mode == ThemeMode.light
+                            ? Icons.light_mode_rounded
+                            : Icons.dark_mode_rounded,
+                    color: selected ? AppColors.primaryAccent : AppColors.textSecondary,
+                  ),
+                  title: Text(_themeModeLabel(mode),
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                        color: selected ? AppColors.primaryAccent : AppColors.textPrimary,
+                      )),
+                  trailing: selected
+                      ? Icon(Icons.check_rounded, color: AppColors.primaryAccent)
+                      : null,
+                  onTap: () {
+                    themeProvider.setThemeMode(mode);
+                    Navigator.of(ctx).pop();
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -275,8 +359,11 @@ class ProfileScreen extends StatelessWidget {
       onTap: onTap,
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: AppColors.primary, size: 20),
+        decoration: BoxDecoration(
+          color: AppColors.primaryAccent.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: AppColors.primaryAccent, size: 20),
       ),
       title: Text(title, style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
       trailing: Row(
@@ -296,7 +383,7 @@ class ProfileScreen extends StatelessWidget {
       icon: const Icon(Icons.logout_rounded),
       label: Text(locale.translate('settings_logout')),
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.cardBackground,
         foregroundColor: AppColors.error,
         elevation: 0,
         padding: const EdgeInsets.symmetric(vertical: 16),

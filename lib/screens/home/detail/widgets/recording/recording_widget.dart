@@ -52,8 +52,8 @@ class _RecordingWidgetState extends State<RecordingWidget> {
     if (!hasPermission) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Microphone permission is required to record audio'),
+          SnackBar(
+            content: const Text('Microphone permission is required to record audio'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -128,10 +128,10 @@ class _RecordingWidgetState extends State<RecordingWidget> {
       if (path != null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Recording saved! Comparing...'),
+            SnackBar(
+              content: const Text('Recording saved! Comparing...'),
               backgroundColor: AppColors.success,
-              duration: Duration(seconds: 2),
+              duration: const Duration(seconds: 2),
             ),
           );
         }

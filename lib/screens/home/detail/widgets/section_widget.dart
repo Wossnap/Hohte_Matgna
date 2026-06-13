@@ -74,7 +74,7 @@ class _SectionWidgetState extends State<SectionWidget> {
         bottom: 16,
       ),
       decoration: BoxDecoration(
-        color: isCompleted ? Color(0xFFECFDF5).withValues(alpha: 0.5) : Colors.white,
+        color: isCompleted ? AppColors.greatBg : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isCompleted 
@@ -147,7 +147,7 @@ class _SectionWidgetState extends State<SectionWidget> {
                   ),
                   Icon(
                     _isExpanded ? Icons.expand_more : Icons.chevron_right,
-                    color: AppColors.primary,
+                    color: AppColors.primaryAccent,
                     size: 24,
                   ),
                 ],
@@ -215,12 +215,12 @@ class _SectionWidgetState extends State<SectionWidget> {
                     const SizedBox(height: 16),
                   ],
                   if (widget.section.content != null && widget.section.content!.isNotEmpty) ...[
-                    const Text(
+                    Text(
                       'Lyrics',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                        color: AppColors.primaryAccent,
                       ),
                     ),
                     const SizedBox(height: 8),

@@ -73,7 +73,7 @@ class _FilterBarState extends State<FilterBar>
                 decoration: BoxDecoration(
                   color: _expanded
                       ? AppColors.primary
-                      : AppColors.primary.withValues(alpha: 0.08),
+                      : AppColors.primaryAccent.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
@@ -82,13 +82,13 @@ class _FilterBarState extends State<FilterBar>
                     Icon(
                       Icons.tune_rounded,
                       size: 18,
-                      color: _expanded ? Colors.white : AppColors.primary,
+                      color: _expanded ? Colors.white : AppColors.primaryAccent,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       'Filter',
                       style: AppTextStyles.bodyMedium.copyWith(
-                        color: _expanded ? Colors.white : AppColors.primary,
+                        color: _expanded ? Colors.white : AppColors.primaryAccent,
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
                       ),
@@ -125,7 +125,7 @@ class _FilterBarState extends State<FilterBar>
                       child: Icon(
                         Icons.keyboard_arrow_down_rounded,
                         size: 20,
-                        color: _expanded ? Colors.white : AppColors.primary,
+                        color: _expanded ? Colors.white : AppColors.primaryAccent,
                       ),
                     ),
                   ],
@@ -271,7 +271,7 @@ class _FilterBarState extends State<FilterBar>
         Container(
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.cardBackground,
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
@@ -292,7 +292,7 @@ class _FilterBarState extends State<FilterBar>
               style: AppTextStyles.bodyMedium
                   .copyWith(fontWeight: FontWeight.w600),
               onChanged: onChanged,
-              dropdownColor: Colors.white,
+              dropdownColor: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(12),
               items: items.map<DropdownMenuItem<T>>((item) {
                 final dynamic itemValue = item[valueField];

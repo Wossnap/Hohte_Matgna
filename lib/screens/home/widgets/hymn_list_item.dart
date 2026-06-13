@@ -18,7 +18,7 @@ class HymnListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: AppColors.cardBackground,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -110,7 +110,7 @@ class HymnListItem extends StatelessWidget {
           shape: BoxShape.circle,
           color: AppColors.success.withValues(alpha: 0.12),
         ),
-        child: const Icon(Icons.check_rounded, size: 18, color: AppColors.success),
+        child: Icon(Icons.check_rounded, size: 18, color: AppColors.success),
       );
     }
 
@@ -136,7 +136,7 @@ class HymnListItem extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.primary.withValues(alpha: 0.07),
+        color: AppColors.primaryAccent.withValues(alpha: 0.07),
       ),
       child: Center(
         child: SvgPicture.asset(
@@ -144,7 +144,7 @@ class HymnListItem extends StatelessWidget {
           width: 18,
           height: 18,
           colorFilter: ColorFilter.mode(
-            AppColors.primary.withValues(alpha: 0.5),
+            AppColors.primaryAccent.withValues(alpha: 0.5),
             BlendMode.srcIn,
           ),
         ),

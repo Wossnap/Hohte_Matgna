@@ -1,6 +1,7 @@
 // lib/screens/home/detail/widgets/interactive_lyrics/interactive_lyrics_container.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:mobile/core/theme/app_colors.dart';
 import 'package:mobile/screens/home/detail/view_models/audio_sync_viewmodel.dart';
 import 'package:mobile/screens/home/detail/view_models/hymn_detail_viewmodel.dart';
 import 'package:mobile/models/section_model.dart';
@@ -93,8 +94,8 @@ class _InteractiveLyricsContainerState extends State<InteractiveLyricsContainer>
           height: widget.mode == LyricsMode.listen ? 400 : 350,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
-            color: Colors.white,
+            border: Border.all(color: AppColors.divider),
+            color: AppColors.cardBackground,
           ),
           child: _buildSegmentsList(viewModel, audioSync),
         ),
