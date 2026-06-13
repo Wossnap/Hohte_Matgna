@@ -38,6 +38,6 @@ flutter:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/images/Hohte_logo.png"
-  adaptive_icon_background: "#00A3FF"
-  adaptive_icon_foreground: "assets/images/Hohte_logo.png"
+  image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#021859"
+  adaptive_icon_foreground: "assets/images/app_icon.png"

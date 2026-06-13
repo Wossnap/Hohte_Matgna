@@ -6,10 +6,10 @@ class AppConstants {
   // API Configuration
   // LOCAL TESTING: phone reaches host via `adb reverse tcp:8000 tcp:8000`.
   // Revert these two lines to the batelew.com URLs before committing.
-  static const String apiBaseUrl = 'http://localhost:8000/api';
-  static const String storageBaseUrl = 'http://localhost:8000/storage';
-  // static const String apiBaseUrl = 'https://hohte-matgna.batelew.com/api';
-  // static const String storageBaseUrl = 'https://hohte-matgna.batelew.com/storage';
+  // static const String apiBaseUrl = 'http://localhost:8000/api';
+  // static const String storageBaseUrl = 'http://localhost:8000/storage';
+  static const String apiBaseUrl = 'https://hohte-matgna.batelew.com/api';
+  static const String storageBaseUrl = 'https://hohte-matgna.batelew.com/storage';
   
   // Storage Keys
   static const String accessTokenKey = 'access_token';
