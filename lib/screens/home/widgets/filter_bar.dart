@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/constants.dart';
 import '../../../providers/metadata_provider.dart';
 import '../../../providers/hymn_provider.dart';
 import '../../../providers/locale_provider.dart';
@@ -200,11 +201,15 @@ class _FilterBarState extends State<FilterBar>
   Widget _buildCategoryFilter(MetadataProvider metadataProvider,
       HymnProvider hymnProvider, LocaleProvider locale) {
     final List<Map<String, dynamic>> categoryItems = [
-      {'id': null, 'name': 'All Categories'}
+      {'id': null, 'name': 'All Categories', 'imageUrl': null}
     ];
-    categoryItems.addAll(metadataProvider.categories
-        .map((c) => {'id': c.id, 'name': c.name.toString()})
-        .toList());
+    categoryItems.addAll(metadataProvider.categories.map((c) => {
+      'id': c.id,
+      'name': c.name.toString(),
+      'imageUrl': c.imagePath != null
+          ? '${AppConstants.storageBaseUrl}/${c.imagePath}'
+          : null,
+    }).toList());
 
     return _buildFilterDropdown<int?>(
       label: locale.translate('filter_category'),
@@ -292,17 +297,38 @@ class _FilterBarState extends State<FilterBar>
               items: items.map<DropdownMenuItem<T>>((item) {
                 final dynamic itemValue = item[valueField];
                 final String displayText = item[displayField].toString();
+                final String? imageUrl = item['imageUrl'] as String?;
                 return DropdownMenuItem<T>(
                   value: itemValue as T?,
-                  child: Text(
-                    displayText,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: value == itemValue
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  child: Row(
+                    children: [
+                      if (imageUrl != null) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: Image.network(
+                            imageUrl,
+                            width: 20,
+                            height: 20,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const SizedBox(width: 20, height: 20),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Expanded(
+                        child: Text(
+                          displayText,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: value == itemValue
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }).toList(),

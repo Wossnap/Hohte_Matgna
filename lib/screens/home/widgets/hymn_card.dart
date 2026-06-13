@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/constants.dart';
 import '../../../models/hymn_model.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/locale_provider.dart';
@@ -34,62 +35,101 @@ class HymnCard extends StatelessWidget {
       ),
       child: Material(
         color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title - Serif style simulation with weight
-                Text(
-                  hymn.title,
-                  style: AppTextStyles.headerSmall.copyWith(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textPrimary,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-
-                // Tags Row (Category & Scale)
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    if (hymn.category != null)
-                      _buildMiniBadge(hymn.category!.name, AppColors.accentGold),
-                    if (hymn.scale != null)
-                      _buildMiniBadge(hymn.scale!.name, AppColors.primary),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                // Play & Practice Stat Labels in a column
-                Column(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Category image banner
+              _buildCategoryBanner(),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildStatLabel(
-                      icon: Icons.play_circle_fill,
-                      label: locale.translate('play'),
-                      count: hymn.plays,
-                      color: AppColors.primary,
+                    Text(
+                      hymn.title,
+                      style: AppTextStyles.headerSmall.copyWith(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    _buildStatLabel(
-                      icon: Icons.history_edu,
-                      label: locale.translate('practice'),
-                      count: hymn.practices,
-                      color: AppColors.accentGreen,
+                    const SizedBox(height: 12),
+
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (hymn.category != null)
+                          _buildMiniBadge(hymn.category!.name, AppColors.accentGold),
+                        if (hymn.scale != null)
+                          _buildMiniBadge(hymn.scale!.name, AppColors.primary),
+                      ],
+                    ),
+
+                    const SizedBox(height: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildStatLabel(
+                          icon: Icons.play_circle_fill,
+                          label: locale.translate('play'),
+                          count: hymn.plays,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(height: 8),
+                        _buildStatLabel(
+                          icon: Icons.history_edu,
+                          label: locale.translate('practice'),
+                          count: hymn.practices,
+                          color: AppColors.accentGreen,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryBanner() {
+    final imagePath = hymn.category?.imagePath;
+    if (imagePath != null) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        child: Image.network(
+          '${AppConstants.storageBaseUrl}/$imagePath',
+          height: 72,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _placeholderBanner(),
+        ),
+      );
+    }
+    return _placeholderBanner();
+  }
+
+  Widget _placeholderBanner() {
+    return Container(
+      height: 72,
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        color: AppColors.primary.withValues(alpha: 0.07),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.music_note_rounded,
+          size: 28,
+          color: AppColors.primary.withValues(alpha: 0.3),
         ),
       ),
     );
@@ -136,8 +176,6 @@ class HymnCard extends StatelessWidget {
     );
   }
 
-  // Removed unused _buildStatBadge helper
-
   Widget _buildMiniBadge(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -158,4 +196,3 @@ class HymnCard extends StatelessWidget {
     );
   }
 }
-

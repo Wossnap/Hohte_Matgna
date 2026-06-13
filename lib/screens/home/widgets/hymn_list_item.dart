@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/constants.dart';
 import '../../../models/hymn_model.dart';
 
 class HymnListItem extends StatelessWidget {
@@ -32,34 +33,8 @@ class HymnListItem extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Left circle: green check if completed, logo otherwise
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: hymn.isCompleted
-                      ? AppColors.success.withValues(alpha: 0.12)
-                      : AppColors.primary.withValues(alpha: 0.07),
-                ),
-                child: hymn.isCompleted
-                    ? const Icon(
-                        Icons.check_rounded,
-                        size: 18,
-                        color: AppColors.success,
-                      )
-                    : Center(
-                        child: SvgPicture.asset(
-                          'assets/images/Hohte_logo.svg',
-                          width: 18,
-                          height: 18,
-                          colorFilter: ColorFilter.mode(
-                            AppColors.primary.withValues(alpha: 0.5),
-                            BlendMode.srcIn,
-                          ),
-                        ),
-                      ),
-              ),
+              // Left circle: green check if completed, category image, else logo
+              _buildLeadingCircle(),
 
               const SizedBox(width: 12),
 
@@ -120,6 +95,57 @@ class HymnListItem extends StatelessWidget {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLeadingCircle() {
+    if (hymn.isCompleted) {
+      return Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.success.withValues(alpha: 0.12),
+        ),
+        child: const Icon(Icons.check_rounded, size: 18, color: AppColors.success),
+      );
+    }
+
+    final categoryImagePath = hymn.category?.imagePath;
+    if (categoryImagePath != null) {
+      return ClipOval(
+        child: Image.network(
+          '${AppConstants.storageBaseUrl}/$categoryImagePath',
+          width: 36,
+          height: 36,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _logoCircle(),
+        ),
+      );
+    }
+
+    return _logoCircle();
+  }
+
+  Widget _logoCircle() {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.primary.withValues(alpha: 0.07),
+      ),
+      child: Center(
+        child: SvgPicture.asset(
+          'assets/images/Hohte_logo.svg',
+          width: 18,
+          height: 18,
+          colorFilter: ColorFilter.mode(
+            AppColors.primary.withValues(alpha: 0.5),
+            BlendMode.srcIn,
           ),
         ),
       ),
