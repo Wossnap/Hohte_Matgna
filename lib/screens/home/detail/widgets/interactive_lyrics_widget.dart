@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../../../models/section_model.dart';
 import '../../../../../models/lyric_segment_model.dart';
@@ -24,10 +26,12 @@ class InteractiveLyricsWidget extends StatefulWidget {
 }
 
 class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
-  int? _playingIndex;
+  int _playingIndex = -1;
   bool _isPlaying = false;
-  Duration _position = Duration.zero;
+  bool _userScrolled = false;
+  Timer? _scrollResumeTimer;
   final ScrollController _scrollController = ScrollController();
+  List<GlobalKey> _itemKeys = [];
 
   List<LyricSegment> get _allLyricSegments {
     if (widget.lyricSegments != null) return widget.lyricSegments!;
@@ -37,118 +41,102 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
   @override
   void initState() {
     super.initState();
+    _initKeys();
     _setupAudioListeners();
   }
 
-  void _setupAudioListeners() {
-    widget.audioPlayer.onLog.listen((msg) {
-      // Log audio events
-    });
+  @override
+  void didUpdateWidget(InteractiveLyricsWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.lyricSegments != widget.lyricSegments ||
+        oldWidget.sections != widget.sections) {
+      _initKeys();
+    }
+  }
 
+  void _initKeys() {
+    final count = _allLyricSegments.length;
+    _itemKeys = List.generate(count, (_) => GlobalKey());
+  }
+
+  void _setupAudioListeners() {
     widget.audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted) {
-        setState(() => _isPlaying = state == PlayerState.playing);
+        setState(() {
+          _isPlaying = state == PlayerState.playing;
+          if (state == PlayerState.completed || state == PlayerState.stopped) {
+            _playingIndex = -1;
+          }
+        });
       }
     });
 
     widget.audioPlayer.onPositionChanged.listen((pos) {
-      if (mounted) {
-        setState(() {
-          _position = pos;
-          _syncHighlightToPosition(pos);
-        });
-      }
+      if (mounted) _syncHighlightToPosition(pos);
     });
 
     widget.audioPlayer.onPlayerComplete.listen((_) {
-      if (mounted) {
-        setState(() {
-          _isPlaying = false;
-          _position = Duration.zero;
-          _playingIndex = null;
-        });
-      }
+      if (mounted) setState(() { _isPlaying = false; _playingIndex = -1; });
     });
   }
 
   void _syncHighlightToPosition(Duration pos) {
     if (!_isPlaying) return;
-
     final ms = pos.inMilliseconds;
-    int? newIndex;
-
-    // Find if the current time falls within any lyric segment
+    int newIndex = -1;
     final segments = _allLyricSegments;
     for (int i = 0; i < segments.length; i++) {
-      final segment = segments[i];
-      if (ms >= segment.startMs && ms <= segment.endMs) {
+      if (ms >= segments[i].startMs && ms <= segments[i].endMs) {
         newIndex = i;
         break;
       }
     }
-
-    if (newIndex != null && newIndex != _playingIndex) {
-      setState(() {
-        _playingIndex = newIndex;
-      });
-      _scrollToIndex(newIndex);
+    if (newIndex != _playingIndex) {
+      setState(() => _playingIndex = newIndex);
+      if (newIndex >= 0) _scrollToIndex(newIndex);
     }
-  }
-
-  @override
-  void dispose() {
-    // Shared player is disposed by HymnDetailScreen
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _playSegment(int index) async {
-    final segments = _allLyricSegments;
-    if (index < 0 || index >= segments.length) return;
-    
-    final segment = segments[index];
-    final startMs = segment.startMs;
-
-    // Seek to the segment start
-    await widget.audioPlayer.seek(Duration(milliseconds: startMs));
-    if (!_isPlaying) {
-      await widget.audioPlayer.resume();
-    }
-    
-    if (mounted) {
-      setState(() {
-        _playingIndex = index;
-        _isPlaying = true;
-      });
-    }
-    
-    widget.onSectionPractice?.call();
-    _scrollToIndex(index);
   }
 
   void _scrollToIndex(int index) {
-    if (_scrollController.hasClients) {
-      // Average width of item is approx 200px
-      final offset = (index * 200.0).clamp(0.0, _scrollController.position.maxScrollExtent);
-      _scrollController.animateTo(
-        offset, 
-        duration: const Duration(milliseconds: 500), 
+    if (_userScrolled) return;
+    if (index < 0 || index >= _itemKeys.length) return;
+    final ctx = _itemKeys[index].currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.35,
+        duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
       );
     }
   }
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    final milliseconds = (duration.inMilliseconds.remainder(1000) ~/ 10).toString().padLeft(2, '0');
-    return '$minutes:$seconds.$milliseconds';
+  Future<void> _playSegment(int index) async {
+    final segments = _allLyricSegments;
+    if (index < 0 || index >= segments.length) return;
+    await widget.audioPlayer.seek(Duration(milliseconds: segments[index].startMs));
+    if (!_isPlaying) await widget.audioPlayer.resume();
+    if (mounted) {
+      setState(() {
+        _playingIndex = index;
+        _isPlaying = true;
+        _userScrolled = false;
+      });
+    }
+    widget.onSectionPractice?.call();
+  }
+
+  @override
+  void dispose() {
+    _scrollResumeTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final segments = _allLyricSegments;
+
     if (segments.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -156,197 +144,188 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
           color: AppColors.cardBackground,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Text('No interactive lyrics available'),
+        child: Text('No interactive lyrics available', style: AppTextStyles.bodyMedium),
       );
     }
 
+    final completedCount = _playingIndex >= 0 ? _playingIndex + 1 : 0;
+    final progress = segments.isEmpty ? 0.0 : completedCount / segments.length;
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header Row
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: Color(0xFFC77C2F),
-                shape: BoxShape.circle,
+        // Karaoke window: fixed height, faded edges
+        SizedBox(
+          height: 300,
+          child: ShaderMask(
+            shaderCallback: (rect) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.transparent, Colors.black, Colors.black, Colors.transparent],
+              stops: [0.0, 0.12, 0.88, 1.0],
+            ).createShader(rect),
+            blendMode: BlendMode.dstIn,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is UserScrollNotification &&
+                    notification.direction != ScrollDirection.idle) {
+                  _userScrolled = true;
+                  _scrollResumeTimer?.cancel();
+                  _scrollResumeTimer = Timer(const Duration(seconds: 4), () {
+                    if (mounted) setState(() => _userScrolled = false);
+                  });
+                }
+                return false;
+              },
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(vertical: 90, horizontal: 8),
+                itemCount: segments.length,
+                itemBuilder: (context, index) {
+                  final isCurrent = index == _playingIndex;
+                  final isPast = _playingIndex >= 0 && index < _playingIndex;
+                  final dist = _playingIndex >= 0 ? (index - _playingIndex).abs() : 99;
+                  return _SegmentItem(
+                    key: _itemKeys[index],
+                    segment: segments[index],
+                    isCurrent: isCurrent,
+                    isPast: isPast,
+                    distanceFromCurrent: dist,
+                    onTap: () => _playSegment(index),
+                  );
+                },
               ),
-              child: const Text('J', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        ),
+
+        // Progress bar (only while playing)
+        if (_playingIndex >= 0) ...[
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
               children: [
-                Text(
-                   'Interactive Lyrics',
-                  style: AppTextStyles.headerSmall.copyWith(
-                    fontWeight: FontWeight.bold, 
-                    color: AppColors.textPrimary
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Progress',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      '$completedCount / ${segments.length}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 4,
+                    backgroundColor: AppColors.primaryAccent.withValues(alpha: 0.15),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryAccent),
                   ),
                 ),
-                Text(
-                  '${_allLyricSegments.length} segments',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-            const Spacer(),
-            ElevatedButton.icon(
-              onPressed: () {
-                if (_isPlaying) {
-                  widget.audioPlayer.pause();
-                } else {
-                  _playSegment(_playingIndex ?? 0);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-              label: Text(_isPlaying ? 'Pause' : 'Play'),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 16),
-
-        // Timer (Centered)
-        Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border),
-              borderRadius: BorderRadius.circular(20),
-              color: AppColors.cardBackground,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.access_time, size: 16, color: AppColors.primaryAccent),
-                const SizedBox(width: 8),
-                Text(
-                  _formatDuration(_position), 
-                  style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
-                ),
               ],
             ),
           ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Horizontal Lyrics List
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: ListView.builder(
-            controller: _scrollController,
-            scrollDirection: Axis.vertical,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: segments.length,
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _SegmentItem(
-                  segment: segments[index],
-                  isPlaying: index == _playingIndex,
-                  onTap: () => _playSegment(index),
-                ),
-              );
-            },
-          ),
-        ),
+        ],
       ],
     );
   }
 }
 
-class _SegmentItem extends StatefulWidget {
+class _SegmentItem extends StatelessWidget {
   final LyricSegment segment;
-  final bool isPlaying;
+  final bool isCurrent;
+  final bool isPast;
+  final int distanceFromCurrent;
   final VoidCallback onTap;
 
   const _SegmentItem({
+    super.key,
     required this.segment,
-    required this.isPlaying,
+    required this.isCurrent,
+    required this.isPast,
+    required this.distanceFromCurrent,
     required this.onTap,
   });
 
   @override
-  State<_SegmentItem> createState() => _SegmentItemState();
-}
-
-class _SegmentItemState extends State<_SegmentItem> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final isInteractive = _isInteractiveSegment();
+    final opacity = isCurrent
+        ? 1.0
+        : distanceFromCurrent == 1
+            ? (isPast ? 0.55 : 0.65)
+            : distanceFromCurrent == 2
+                ? 0.35
+                : 0.2;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 300),
+        opacity: opacity,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.only(right: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: widget.isPlaying
-                ? AppColors.primaryAccent.withValues(alpha: 0.12)
-                : (_isHovered ? AppColors.primaryAccent.withValues(alpha: 0.06) : AppColors.cardBackground),
-            border: Border.all(
-              color: widget.isPlaying ? AppColors.primaryAccent : AppColors.border,
-              width: widget.isPlaying ? 2 : 1,
-            ),
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: widget.isPlaying ? [
-              BoxShadow(
-                color: AppColors.primaryAccent.withValues(alpha: 0.2),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ] : null,
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: isCurrent ? 18 : 10,
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+          decoration: BoxDecoration(
+            gradient: isCurrent
+                ? LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      AppColors.primaryAccent.withValues(alpha: 0.18),
+                      AppColors.secondary.withValues(alpha: 0.08),
+                    ],
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(14),
+            border: isCurrent
+                ? Border.all(
+                    color: AppColors.primaryAccent.withValues(alpha: 0.4),
+                    width: 1.5,
+                  )
+                : null,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                widget.segment.text,
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: widget.isPlaying ? AppColors.primaryAccent : AppColors.textPrimary,
-                  fontWeight: widget.isPlaying ? FontWeight.bold : FontWeight.normal,
-                ),
-                textAlign: TextAlign.center,
+              SizedBox(
+                width: 28,
+                child: isCurrent
+                    ? Icon(Icons.graphic_eq_rounded, size: 20, color: AppColors.primaryAccent)
+                    : (isPast && distanceFromCurrent == 1
+                        ? Icon(Icons.check_circle_outline_rounded, size: 15, color: AppColors.textSecondary)
+                        : const SizedBox.shrink()),
               ),
-              if (isInteractive) ...[
-                const SizedBox(height: 4),
-                Icon(
-                  Icons.mic,
-                  size: 16,
-                  color: widget.isPlaying ? AppColors.primaryAccent : AppColors.textSecondary,
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  segment.text,
+                  style: TextStyle(
+                    fontSize: isCurrent ? 22 : 17,
+                    fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
+                    color: isCurrent ? AppColors.primaryAccent : AppColors.textPrimary,
+                    height: 1.5,
+                  ),
                 ),
-              ],
+              ),
             ],
           ),
         ),
       ),
     );
   }
-
-  bool _isInteractiveSegment() {
-    // Simple heuristic: if there's a gap before this segment, it's interactive
-    return true; // Placeholder
-  }
 }
-

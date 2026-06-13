@@ -290,7 +290,7 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                         label: Text(viewModel.showLyricsGame ? 'Show Lyrics' : 'Play Game'),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: AppColors.primaryAccent),
-                          foregroundColor: AppColors.primary,
+                          foregroundColor: AppColors.primaryAccent,
                         ),
                       ),
                     ],

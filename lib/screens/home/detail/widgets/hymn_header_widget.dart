@@ -79,7 +79,7 @@ class HymnHeaderWidget extends StatelessWidget {
               style: AppTextStyles.headerLarge.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w900,
-                fontSize: 28, // Slightly reduced from 32
+                fontSize: 38,
                 shadows: [
                   Shadow(
                     color: Colors.black.withValues(alpha: 0.3),
