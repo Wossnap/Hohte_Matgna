@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_text_styles.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../providers/hymn_provider.dart';
 import '../../providers/locale_provider.dart';
@@ -58,13 +57,14 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        title: Text(
-          locale.translate('home_title'), 
-          style: AppTextStyles.headerMedium.copyWith(color: AppColors.textPrimary),
+        centerTitle: true,
+        title: SvgPicture.asset(
+          'assets/images/Hohte_logo.svg',
+          height: 36,
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, size: 28, color: AppColors.primary), 
+            icon: const Icon(Icons.refresh, size: 28, color: AppColors.primary),
             onPressed: _refresh,
           ),
         ],
@@ -90,54 +90,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         children: [
-          // Logo Section - Refined to match website hero style
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8.0, bottom: 40.0),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.2), width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.05),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: SvgPicture.asset(
-                      'assets/images/Hohte_logo.svg',
-                      height: 80,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'ዘሆኅተ',
-                    style: AppTextStyles.headerLarge.copyWith(
-                      color: AppColors.primary,
-                      letterSpacing: 4.0,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 26,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    width: 40,
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: AppColors.accentGold,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
           const SearchField(),
           const SizedBox(height: 12),
           const FilterBar(),
