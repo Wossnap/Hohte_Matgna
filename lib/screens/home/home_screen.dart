@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../providers/hymn_provider.dart';
 import '../../providers/locale_provider.dart';
+import '../../providers/dashboard_provider.dart';
 import '../../widgets/app_loader.dart';
 import '../../widgets/app_error.dart';
 import '../../widgets/empty_state.dart';
@@ -11,6 +12,7 @@ import './widgets/hymn_card.dart';
 import './widgets/filter_bar.dart';
 import './widgets/search_field.dart';
 import './widgets/daily_focus_widget.dart';
+import './widgets/continue_practicing_widget.dart';
 import './detail/hymn_detail_screen.dart';
 
 /// The home dashboard displaying the list of hymns.
@@ -43,7 +45,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _refresh() async {
     final hymnProvider = Provider.of<HymnProvider>(context, listen: false);
-    hymnProvider.refresh();
+    final dashboardProvider = Provider.of<DashboardProvider>(context, listen: false);
+    await Future.wait([hymnProvider.refresh(), dashboardProvider.refresh()]);
   }
 
   @override
@@ -94,7 +97,8 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           const FilterBar(),
           const SizedBox(height: 24),
-          const DailyFocusWidget(),
+          const ContinuePracticingWidget(),
+          // const DailyFocusWidget(),
           
           if (hymnProvider.hymns.isEmpty)
             EmptyState(

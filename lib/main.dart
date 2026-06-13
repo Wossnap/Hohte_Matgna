@@ -12,6 +12,7 @@ import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'providers/locale_provider.dart';
+import 'providers/dashboard_provider.dart';
 
 import 'dart:async';
 
@@ -45,6 +46,10 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProxyProvider<AuthProvider, HymnProvider>(
           create: (_) => HymnProvider(),
           update: (_, auth, hymn) => hymn!..update(auth.isAuthenticated),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, DashboardProvider>(
+          create: (_) => DashboardProvider(),
+          update: (_, auth, dashboard) => dashboard!..update(auth.isAuthenticated),
         ),
         ChangeNotifierProvider(create: (_) => PracticeProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
