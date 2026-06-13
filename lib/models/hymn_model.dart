@@ -25,6 +25,7 @@ class Hymn {
   final int? duration;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final bool isCompleted;
 
   Hymn({
     required this.id,
@@ -47,6 +48,7 @@ class Hymn {
     this.duration,
     this.createdAt,
     this.updatedAt,
+    this.isCompleted = false,
   });
 
   static String? handleUrl(dynamic url) {
@@ -116,6 +118,7 @@ class Hymn {
       updatedAt: data['updated_at'] != null
           ? DateTime.parse(data['updated_at'])
           : null,
+      isCompleted: data['is_completed'] == true,
     );
   }
 

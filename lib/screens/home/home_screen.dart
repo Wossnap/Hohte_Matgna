@@ -15,6 +15,7 @@ import './widgets/daily_focus_widget.dart';
 import './widgets/continue_practicing_widget.dart';
 import './widgets/recently_added_widget.dart';
 import './widgets/playlists_widget.dart';
+import './widgets/hymn_list_item.dart';
 import './detail/hymn_detail_screen.dart';
 
 /// The home dashboard displaying the list of hymns.
@@ -28,6 +29,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _isGridView = false;
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     super.dispose();
+  }
+
+  void _openHymn(BuildContext context, int hymnId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HymnDetailScreen(hymnId: hymnId),
+      ),
+    );
   }
 
   void _loadMore() {
@@ -69,7 +81,15 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, size: 28, color: AppColors.primary),
+            icon: Icon(
+              _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+              size: 26,
+              color: AppColors.primary,
+            ),
+            onPressed: () => setState(() => _isGridView = !_isGridView),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 26, color: AppColors.primary),
             onPressed: _refresh,
           ),
         ],
@@ -115,33 +135,41 @@ class _HomeScreenState extends State<HomeScreen> {
             )
           else ...[
             const SizedBox(height: 16),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 0.72,
+            if (_isGridView)
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 0.72,
+                ),
+                itemCount: hymnProvider.hymns.length + (hymnProvider.hasMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == hymnProvider.hymns.length) return _buildLoadMoreButton();
+                  final hymn = hymnProvider.hymns[index];
+                  return HymnCard(
+                    hymn: hymn,
+                    onTap: () => _openHymn(context, hymn.id),
+                  );
+                },
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: hymnProvider.hymns.length + (hymnProvider.hasMore ? 1 : 0),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  if (index == hymnProvider.hymns.length) return _buildLoadMoreButton();
+                  final hymn = hymnProvider.hymns[index];
+                  return HymnListItem(
+                    hymn: hymn,
+                    onTap: () => _openHymn(context, hymn.id),
+                  );
+                },
               ),
-              itemCount: hymnProvider.hymns.length + (hymnProvider.hasMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == hymnProvider.hymns.length) return _buildLoadMoreButton();
-
-                final hymn = hymnProvider.hymns[index];
-                return HymnCard(
-                  hymn: hymn,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => HymnDetailScreen(hymnId: hymn.id),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
           ],
         ],
       ),
