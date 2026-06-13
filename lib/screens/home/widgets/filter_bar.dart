@@ -13,11 +13,42 @@ class FilterBar extends StatefulWidget {
   State<FilterBar> createState() => _FilterBarState();
 }
 
-class _FilterBarState extends State<FilterBar> {
+class _FilterBarState extends State<FilterBar>
+    with SingleTickerProviderStateMixin {
+  bool _expanded = false;
+  late final AnimationController _controller;
+  late final Animation<double> _expandAnim;
+
   final List<Map<String, dynamic>> _sortOptions = [
     {'value': null, 'label': 'Default'},
     {'value': 'plays', 'label': 'Most Popular'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    _expandAnim = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggle() {
+    setState(() => _expanded = !_expanded);
+    _expanded ? _controller.forward() : _controller.reverse();
+  }
+
+  int _activeCount(HymnProvider p) =>
+      (p.selectedCategoryId != null ? 1 : 0) +
+      (p.selectedScaleId != null ? 1 : 0) +
+      (p.sortBy != null ? 1 : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -25,83 +56,178 @@ class _FilterBarState extends State<FilterBar> {
     final hymnProvider = Provider.of<HymnProvider>(context);
     final locale = Provider.of<LocaleProvider>(context);
 
-    if (metadataProvider.isLoading) {
-      return _buildLoadingState();
-    }
+    final activeCount = _activeCount(hymnProvider);
 
-    if (metadataProvider.error != null) {
-      return _buildErrorState(metadataProvider.error!);
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              // Category Filter
-              Expanded(
-                child: _buildCategoryFilter(metadataProvider, hymnProvider, locale),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Filter toggle button row
+        Row(
+          children: [
+            GestureDetector(
+              onTap: _toggle,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: _expanded
+                      ? AppColors.primary
+                      : AppColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.tune_rounded,
+                      size: 18,
+                      color: _expanded ? Colors.white : AppColors.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Filter',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: _expanded ? Colors.white : AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    if (activeCount > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: _expanded
+                              ? Colors.white
+                              : AppColors.secondary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$activeCount',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: _expanded
+                                  ? AppColors.primary
+                                  : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 4),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 220),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 20,
+                        color: _expanded ? Colors.white : AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 12),
-              
-              // Scale Filter
-              Expanded(
-                child: _buildScaleFilter(metadataProvider, hymnProvider, locale),
+            ),
+            if (activeCount > 0) ...[
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: () {
+                  hymnProvider.setCategoryId(null);
+                  hymnProvider.setScaleId(null);
+                  hymnProvider.setSort(null);
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'Clear',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.error,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
               ),
             ],
+          ],
+        ),
+
+        // Collapsible filter panel
+        SizeTransition(
+          sizeFactor: _expandAnim,
+          axisAlignment: -1,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: metadataProvider.isLoading
+                ? _buildLoadingState()
+                : metadataProvider.error != null
+                    ? _buildErrorState(metadataProvider.error!)
+                    : Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildCategoryFilter(
+                                    metadataProvider, hymnProvider, locale),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildScaleFilter(
+                                    metadataProvider, hymnProvider, locale),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _buildSortFilter(hymnProvider, locale),
+                        ],
+                      ),
           ),
-          const SizedBox(height: 12),
-          // Sort Filter
-          _buildSortFilter(hymnProvider, locale),
-        ],
-      ),
+        ),
+
+        const SizedBox(height: 12),
+      ],
     );
   }
 
-  Widget _buildCategoryFilter(MetadataProvider metadataProvider, HymnProvider hymnProvider, LocaleProvider locale) {
-    // Create dropdown items
+  Widget _buildCategoryFilter(MetadataProvider metadataProvider,
+      HymnProvider hymnProvider, LocaleProvider locale) {
     final List<Map<String, dynamic>> categoryItems = [
       {'id': null, 'name': 'All Categories'}
     ];
-    
-    categoryItems.addAll(
-      metadataProvider.categories.map((category) => {
-        'id': category.id,
-        'name': category.name.toString()
-      }).toList()
-    );
+    categoryItems.addAll(metadataProvider.categories
+        .map((c) => {'id': c.id, 'name': c.name.toString()})
+        .toList());
 
     return _buildFilterDropdown<int?>(
       label: locale.translate('filter_category'),
       value: hymnProvider.selectedCategoryId,
       items: categoryItems,
-      onChanged: (value) {
-        hymnProvider.setCategoryId(value);
-      },
+      onChanged: (value) => hymnProvider.setCategoryId(value),
     );
   }
 
-  Widget _buildScaleFilter(MetadataProvider metadataProvider, HymnProvider hymnProvider, LocaleProvider locale) {
-    // Create dropdown items
+  Widget _buildScaleFilter(MetadataProvider metadataProvider,
+      HymnProvider hymnProvider, LocaleProvider locale) {
     final List<Map<String, dynamic>> scaleItems = [
       {'id': null, 'name': 'All Scales'}
     ];
-    
-    scaleItems.addAll(
-      metadataProvider.scales.map((scale) => {
-        'id': scale.id,
-        'name': scale.name.toString()
-      }).toList()
-    );
+    scaleItems.addAll(metadataProvider.scales
+        .map((s) => {'id': s.id, 'name': s.name.toString()})
+        .toList());
 
     return _buildFilterDropdown<int?>(
       label: locale.translate('filter_scale'),
       value: hymnProvider.selectedScaleId,
       items: scaleItems,
-      onChanged: (value) {
-        hymnProvider.setScaleId(value);
-      },
+      onChanged: (value) => hymnProvider.setScaleId(value),
     );
   }
 
@@ -112,9 +238,7 @@ class _FilterBarState extends State<FilterBar> {
       items: _sortOptions,
       displayField: 'label',
       valueField: 'value',
-      onChanged: (value) {
-        hymnProvider.setSort(value);
-      },
+      onChanged: (value) => hymnProvider.setSort(value),
     );
   }
 
@@ -157,22 +281,26 @@ class _FilterBarState extends State<FilterBar> {
             child: DropdownButton<T>(
               value: value,
               isExpanded: true,
-              icon: Icon(Icons.keyboard_arrow_down_rounded, size: 28, color: AppColors.primary.withValues(alpha: 0.7)),
-              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+              icon: Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 28,
+                  color: AppColors.primary.withValues(alpha: 0.7)),
+              style: AppTextStyles.bodyMedium
+                  .copyWith(fontWeight: FontWeight.w600),
               onChanged: onChanged,
               dropdownColor: Colors.white,
               borderRadius: BorderRadius.circular(12),
               items: items.map<DropdownMenuItem<T>>((item) {
                 final dynamic itemValue = item[valueField];
                 final String displayText = item[displayField].toString();
-                
                 return DropdownMenuItem<T>(
                   value: itemValue as T?,
                   child: Text(
                     displayText,
                     style: AppTextStyles.bodyMedium.copyWith(
                       color: AppColors.textPrimary,
-                      fontWeight: value == itemValue ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: value == itemValue
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -204,10 +332,7 @@ class _FilterBarState extends State<FilterBar> {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            'Loading filters...',
-            style: AppTextStyles.caption,
-          ),
+          Text('Loading filters...', style: AppTextStyles.caption),
         ],
       ),
     );
@@ -219,22 +344,18 @@ class _FilterBarState extends State<FilterBar> {
       decoration: BoxDecoration(
         color: AppColors.error.withAlpha((0.1 * 255).round()),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.error.withAlpha((0.3 * 255).round())),
+        border:
+            Border.all(color: AppColors.error.withAlpha((0.3 * 255).round())),
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 16,
-            color: AppColors.error,
-          ),
+          Icon(Icons.error_outline, size: 16, color: AppColors.error),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Filter error',
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.error,
-              ),
+              style:
+                  AppTextStyles.caption.copyWith(color: AppColors.error),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
