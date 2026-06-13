@@ -153,13 +153,15 @@ class _CompareWidgetState extends State<CompareWidget> {
       String? path;
       if (!kIsWeb) {
         final tempDir = await getTemporaryDirectory();
-        // Use .wav extension when encoder is set to WAV on mobile
-        path = '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.wav';
+        // Record AAC in an .m4a container on mobile. The server's mimetypes
+        // validation detects this as audio/mp4 (an accepted type), whereas a
+        // PCM .wav is detected as audio/x-wav and rejected.
+        path = '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
       }
       
       await _audioRecorder.start(
         RecordConfig(
-          encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.wav,
+          encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc,
           numChannels: 1,
           sampleRate: 48000,
           bitRate: 128000,
