@@ -51,8 +51,12 @@ class EmptyState extends StatelessWidget {
               const SizedBox(height: 24),
               OutlinedButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Refresh'),
+                icon: Icon(Icons.refresh, color: AppColors.primaryAccent),
+                label: Text('Refresh', style: TextStyle(color: AppColors.primaryAccent)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryAccent,
+                  side: BorderSide(color: AppColors.primaryAccent.withValues(alpha: 0.5)),
+                ),
               ),
             ],
           ],

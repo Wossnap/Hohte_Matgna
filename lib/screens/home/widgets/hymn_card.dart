@@ -68,7 +68,7 @@ class HymnCard extends StatelessWidget {
                         if (hymn.category != null)
                           _buildMiniBadge(hymn.category!.name, AppColors.accentGold),
                         if (hymn.scale != null)
-                          _buildMiniBadge(hymn.scale!.name, AppColors.primary),
+                          _buildMiniBadge(hymn.scale!.name, AppColors.primaryAccent),
                       ],
                     ),
 
@@ -80,7 +80,7 @@ class HymnCard extends StatelessWidget {
                           icon: Icons.play_circle_fill,
                           label: locale.translate('play'),
                           count: hymn.plays,
-                          color: AppColors.primary,
+                          color: AppColors.primaryAccent,
                         ),
                         const SizedBox(height: 8),
                         _buildStatLabel(
@@ -123,13 +123,13 @@ class HymnCard extends StatelessWidget {
       height: 72,
       decoration: BoxDecoration(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-        color: AppColors.primary.withValues(alpha: 0.07),
+        color: AppColors.primaryAccent.withValues(alpha: 0.07),
       ),
       child: Center(
         child: Icon(
           Icons.music_note_rounded,
           size: 28,
-          color: AppColors.primary.withValues(alpha: 0.3),
+          color: AppColors.primaryAccent.withValues(alpha: 0.3),
         ),
       ),
     );

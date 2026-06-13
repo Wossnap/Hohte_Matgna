@@ -205,7 +205,7 @@ class _DailyFocusWidgetState extends State<DailyFocusWidget> {
           height: 8,
           margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
-            color: _currentPage == index ? AppColors.primary : AppColors.primary.withValues(alpha: 0.2),
+            color: _currentPage == index ? AppColors.primaryAccent : AppColors.primaryAccent.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(4),
           ),
         );

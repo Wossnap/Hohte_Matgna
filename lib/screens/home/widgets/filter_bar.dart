@@ -288,7 +288,7 @@ class _FilterBarState extends State<FilterBar>
               isExpanded: true,
               icon: Icon(Icons.keyboard_arrow_down_rounded,
                   size: 28,
-                  color: AppColors.primary.withValues(alpha: 0.7)),
+                  color: AppColors.primaryAccent.withValues(alpha: 0.7)),
               style: AppTextStyles.bodyMedium
                   .copyWith(fontWeight: FontWeight.w600),
               onChanged: onChanged,

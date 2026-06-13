@@ -154,7 +154,7 @@ class _SearchFieldState extends State<SearchField> {
                           Icon(
                             Icons.music_note_rounded,
                             size: 16,
-                            color: AppColors.primary.withValues(alpha: 0.5),
+                            color: AppColors.primaryAccent.withValues(alpha: 0.5),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
