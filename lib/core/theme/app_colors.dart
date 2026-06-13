@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 /// Defines the color palette and semantic colors for the application.
 class AppColors {
   // Brand Colors
-  static const Color primary = Color(0xFF8B0000); // Dark Red (Hymn Library primary)
-  static const Color primaryLight = Color(0xFFA52A2A); 
-  static const Color primaryDark = Color(0xFF600000); 
-  static const Color secondary = Color(0xFFD4AF37); // Gold (Global secondary)
-  static const Color accentGold = Color(0xFFD4AF37);
+  static const Color primary = Color(0xFF021859); // Navy (matches web primary)
+  static const Color primaryLight = Color(0xFF1A3A8F);
+  static const Color primaryDark = Color(0xFF010E35);
+  static const Color secondary = Color(0xFFEAA406); // Gold (matches web secondary)
+  static const Color accentGold = Color(0xFFEAA406);
   static const Color accentGreen = Color(0xFF2E8B57);
   
   static const Color background = Color(0xFFFDFBF7); // Beige/Off-white
@@ -36,7 +36,7 @@ class AppColors {
   static const Color penaltyBg = Color(0xFFFFF7ED); // Orange-50
 
   // UI Colors
-  static const Color border = Color(0x66D4AF37);
+  static const Color border = Color(0x66EAA406);
   static const Color divider = Color(0xFFE5E7EB);
   static const Color shimmerBase = Color(0xFFE5E7EB);
   static const Color shimmerHighlight = Color(0xFFF3F4F6);
