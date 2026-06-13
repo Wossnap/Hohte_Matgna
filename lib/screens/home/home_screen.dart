@@ -5,7 +5,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../providers/hymn_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../../providers/dashboard_provider.dart';
-import '../../widgets/app_loader.dart';
 import '../../widgets/app_error.dart';
 import '../../widgets/empty_state.dart';
 import './widgets/hymn_card.dart';
@@ -99,16 +98,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildContent(HymnProvider hymnProvider, LocaleProvider locale) {
-    if (hymnProvider.isLoading && hymnProvider.hymns.isEmpty) {
-      return const AppLoader();
-    }
-
-    if (hymnProvider.error != null && hymnProvider.hymns.isEmpty) {
-      return AppError(
-        message: hymnProvider.error!,
-        onRetry: () => hymnProvider.refresh(),
-      );
-    }
+    // IMPORTANT: SearchField and FilterBar must stay mounted across loads.
+    // Previously a full-screen AppLoader/AppError replaced the entire body
+    // whenever `isLoading && hymns.isEmpty` — which happens right after an
+    // empty-result search — destroying the SearchField's state (keyboard
+    // closed, text cleared) mid-typing. Now only the area BELOW the filter
+    // bar swaps between loader / error / empty / list.
+    final bool noFilters = hymnProvider.searchQuery.isEmpty &&
+        hymnProvider.selectedCategoryId == null &&
+        hymnProvider.selectedScaleId == null &&
+        hymnProvider.sortBy == null;
 
     return RefreshIndicator(
       onRefresh: _refresh,
@@ -119,61 +118,91 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           const FilterBar(),
           const SizedBox(height: 24),
-          const ContinuePracticingWidget(),
-          const RecentlyAddedWidget(),
-          const PlaylistsWidget(),
-          // const DailyFocusWidget(),
-          
-          if (hymnProvider.hymns.isEmpty)
-            EmptyState(
-              title: 'No Hymns Found',
-              message: hymnProvider.searchQuery.isNotEmpty
-                  ? 'No hymns match your search'
-                  : 'Try changing your filters',
-              icon: Icons.music_off,
-              onRetry: () => hymnProvider.refresh(),
-            )
-          else ...[
-            const SizedBox(height: 16),
-            if (_isGridView)
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 0.72,
-                ),
-                itemCount: hymnProvider.hymns.length + (hymnProvider.hasMore ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == hymnProvider.hymns.length) return _buildLoadMoreButton();
-                  final hymn = hymnProvider.hymns[index];
-                  return HymnCard(
-                    hymn: hymn,
-                    onTap: () => _openHymn(context, hymn.id),
-                  );
-                },
-              )
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: hymnProvider.hymns.length + (hymnProvider.hasMore ? 1 : 0),
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  if (index == hymnProvider.hymns.length) return _buildLoadMoreButton();
-                  final hymn = hymnProvider.hymns[index];
-                  return HymnListItem(
-                    hymn: hymn,
-                    onTap: () => _openHymn(context, hymn.id),
-                  );
-                },
-              ),
+          if (noFilters) ...[
+            const ContinuePracticingWidget(),
+            const RecentlyAddedWidget(),
+            const PlaylistsWidget(),
           ],
+          ..._buildResultArea(hymnProvider),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildResultArea(HymnProvider hymnProvider) {
+    // Loading the first page (no data yet) — show an inline loader.
+    if (hymnProvider.isLoading && hymnProvider.hymns.isEmpty) {
+      return const [
+        Padding(
+          padding: EdgeInsets.only(top: 48),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
+    }
+
+    if (hymnProvider.error != null && hymnProvider.hymns.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.only(top: 24),
+          child: AppError(
+            message: hymnProvider.error!,
+            onRetry: () => hymnProvider.refresh(),
+          ),
+        ),
+      ];
+    }
+
+    if (hymnProvider.hymns.isEmpty) {
+      return [
+        EmptyState(
+          title: 'No Hymns Found',
+          message: hymnProvider.searchQuery.isNotEmpty
+              ? 'No hymns match your search'
+              : 'Try changing your filters',
+          icon: Icons.music_off,
+          onRetry: () => hymnProvider.refresh(),
+        ),
+      ];
+    }
+
+    return [
+      const SizedBox(height: 16),
+      if (_isGridView)
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 0.72,
+          ),
+          itemCount: hymnProvider.hymns.length + (hymnProvider.hasMore ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index == hymnProvider.hymns.length) return _buildLoadMoreButton();
+            final hymn = hymnProvider.hymns[index];
+            return HymnCard(
+              hymn: hymn,
+              onTap: () => _openHymn(context, hymn.id),
+            );
+          },
+        )
+      else
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: hymnProvider.hymns.length + (hymnProvider.hasMore ? 1 : 0),
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            if (index == hymnProvider.hymns.length) return _buildLoadMoreButton();
+            final hymn = hymnProvider.hymns[index];
+            return HymnListItem(
+              hymn: hymn,
+              onTap: () => _openHymn(context, hymn.id),
+            );
+          },
+        ),
+    ];
   }
 
   Widget _buildLoadMoreButton() {
