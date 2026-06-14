@@ -53,7 +53,10 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: p.primary, width: 2),
+          borderSide: BorderSide(
+            color: isDark ? p.secondary : p.primary,
+            width: 2,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -75,6 +78,11 @@ class AppTheme {
       dialogTheme: DialogThemeData(backgroundColor: p.cardBackground),
       bottomSheetTheme:
           BottomSheetThemeData(backgroundColor: p.cardBackground),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: isDark ? p.secondary : p.primary,
+        selectionColor: (isDark ? p.secondary : p.primary).withValues(alpha: 0.3),
+        selectionHandleColor: isDark ? p.secondary : p.primary,
+      ),
       dividerColor: p.divider,
       colorScheme: ColorScheme(
         brightness: p.brightness,

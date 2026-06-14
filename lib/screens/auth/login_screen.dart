@@ -103,13 +103,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.04),
+                      color: AppColors.primaryAccent.withValues(alpha: 0.08),
                       shape: BoxShape.circle,
                     ),
                     child: SvgPicture.asset(
                       'assets/images/Hohte_logo.svg',
                       height: 100,
-                      colorFilter: ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+                      colorFilter: ColorFilter.mode(AppColors.primaryAccent, BlendMode.srcIn),
                     ),
                   ),
                 ),
@@ -138,11 +138,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.cardBackground,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha((0.03 * 255).round()),
+                        color: Colors.black.withAlpha((0.08 * 255).round()),
                         blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),
@@ -242,6 +242,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     );
                                   },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: AppColors.secondary,
+                                  ),
                                   child: const Text('Sign Up'),
                                 ),
                               ],
