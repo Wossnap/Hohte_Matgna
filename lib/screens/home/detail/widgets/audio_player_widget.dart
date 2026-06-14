@@ -48,6 +48,14 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   bool _isLoading = true;
   int _sessionPlayIncrements = 0; // Track increments during this session
   final List<double> _playbackRates = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+
+  // Auto-replay / loop state — LOCAL to this player so the main melody and each
+  // section loop independently. Previously this was shared via the view-model,
+  // which made a finishing section pause the *main* player and mis-count loops
+  // (it also double-counted, auto-stopping at ~7 plays instead of 15).
+  int _loopCount = 0;
+  static const int _maxLoops = 15;
+  bool _handlingCompletion = false;
   
   // Section boundaries
   Duration _sectionStart = Duration.zero;
@@ -152,7 +160,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
         // Check if we've reached the section end
         if (_isSectionMode && _sectionEnd > Duration.zero && position >= _sectionEnd) {
-          _handleFinish();
+          _onPlaybackFinished();
           return;
         }
         
@@ -174,79 +182,54 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     });
 
     widget.audioPlayer.onPlayerComplete.listen((_) {
-      if (mounted) {
-        // Increment progress on every completion/loop to match website parity
-        widget.onPlay?.call();
-        
-        // Locally increment session plays for immediate feedback
-        setState(() {
-          _sessionPlayIncrements++;
-        });
-
-        // For sections, auto-replay from section start
-        if (_isSectionMode) {
-          // Small delay before replaying to avoid immediate restart
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              widget.audioPlayer.seek(_sectionStart);
-              widget.audioPlayer.resume();
-            }
-          });
-          return;
-        }
-        
-        // For full hymns, handle looping logic
-        final viewModel = Provider.of<HymnDetailViewModel>(context, listen: false);
-        viewModel.incrementLoop();
-        
-        if (viewModel.loopCount < viewModel.maxLoops) {
-          _handleFinish(autoResume: true);
-        } else {
-          _handleFinish(autoResume: false);
-        }
-      }
+      if (mounted) _onPlaybackFinished();
     });
   }
 
-  void _handleFinish({bool autoResume = false}) {
-    final viewModel = Provider.of<HymnDetailViewModel>(context, listen: false);
-    
-    // Anti-cheat verification
+  /// Called when the current play reaches its end (full-file completion for the
+  /// main melody / section audio, or the section boundary in section mode).
+  /// Auto-replays the same audio until the per-player loop limit is hit, then
+  /// stops and resets to the start — matching the Laravel web app's behaviour.
+  void _onPlaybackFinished() {
+    if (_handlingCompletion) return;
+    _handlingCompletion = true;
+
+    // Anti-cheat: only count a play if enough of it was actually listened to.
     final totalDuration = _sectionDuration.inSeconds.toDouble();
-    final isValidPlay = totalDuration > 0 && (_listenedTimeSeconds >= totalDuration * _minListenRatio);
-    
+    final isValidPlay = totalDuration > 0 &&
+        (_listenedTimeSeconds >= totalDuration * _minListenRatio);
     if (isValidPlay) {
-      // Only call onPlay (which increments backend play count) if valid
       widget.onPlay?.call();
+      if (mounted) setState(() => _sessionPlayIncrements++);
     }
-    
-    // Reset listening state for next loop
     _listenedTimeSeconds = 0;
-    
-    if (_isSectionMode) {
-      widget.audioPlayer.pause();
-      widget.audioPlayer.seek(_sectionStart);
-      setState(() {
-        _isPlaying = false;
-        _position = _sectionStart;
+
+    _loopCount++;
+    final restartPosition = _isSectionMode ? _sectionStart : Duration.zero;
+
+    if (_loopCount < _maxLoops) {
+      // Auto-replay this same audio. Small delay avoids an immediate restart
+      // glitch and lets the player settle after completion.
+      Future.delayed(const Duration(milliseconds: 300), () async {
+        if (!mounted) {
+          _handlingCompletion = false;
+          return;
+        }
+        await widget.audioPlayer.seek(restartPosition);
+        await widget.audioPlayer.resume();
+        _handlingCompletion = false;
       });
-      
-      if (autoResume) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) widget.audioPlayer.resume();
-        });
-      }
     } else {
-      viewModel.incrementLoop();
-      if (autoResume) {
-        widget.audioPlayer.seek(Duration.zero);
-        widget.audioPlayer.resume();
-      } else {
+      // Reached the auto-stop limit — stop and reset to the start.
+      widget.audioPlayer.pause();
+      widget.audioPlayer.seek(restartPosition);
+      if (mounted) {
         setState(() {
           _isPlaying = false;
-          _position = Duration.zero;
+          _position = restartPosition;
         });
       }
+      _handlingCompletion = false;
     }
   }
 
@@ -256,13 +239,14 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
       if (_isPlaying) {
         await widget.audioPlayer.pause();
       } else {
-        if (viewModel.loopCount >= viewModel.maxLoops) {
-          viewModel.resetLoops();
+        if (_loopCount >= _maxLoops) {
           setState(() {
-             _sessionPlayIncrements = 0;
+            _loopCount = 0;
+            _sessionPlayIncrements = 0;
           });
         }
-        
+        _handlingCompletion = false;
+
         // In section mode, ensure we're at the section start before playing
         if (_isSectionMode && _position < _sectionStart) {
           await widget.audioPlayer.seek(_sectionStart);
@@ -346,7 +330,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<HymnDetailViewModel>(context);
-    final remainingLoops = viewModel.maxLoops - viewModel.loopCount;
+    final remainingLoops = _maxLoops - _loopCount;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -464,11 +448,11 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                     ),
                   ],
                 ),
-                if (viewModel.loopCount > 0)
+                if (_loopCount > 0)
                   TextButton(
                     onPressed: () {
-                      viewModel.resetLoops();
                       setState(() {
+                        _loopCount = 0;
                         _sessionPlayIncrements = 0;
                       });
                     },
