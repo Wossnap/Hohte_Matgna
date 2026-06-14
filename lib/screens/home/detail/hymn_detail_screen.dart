@@ -117,6 +117,13 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                     ),
                   ),
                   foregroundColor: AppColors.textLight,
+                  // The global appBarTheme.iconTheme (textPrimary) would otherwise
+                  // override foregroundColor and render the leading/action icons
+                  // dark on the navy gradient — invisible in light mode. Force
+                  // white here since this header sits on the brand gradient in
+                  // both light and dark modes.
+                  iconTheme: const IconThemeData(color: Colors.white),
+                  actionsIconTheme: const IconThemeData(color: Colors.white),
                   elevation: 0,
                   actions: [
                     IconButton(
