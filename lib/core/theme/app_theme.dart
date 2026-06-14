@@ -78,6 +78,9 @@ class AppTheme {
       dialogTheme: DialogThemeData(backgroundColor: p.cardBackground),
       bottomSheetTheme:
           BottomSheetThemeData(backgroundColor: p.cardBackground),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: isDark ? p.secondary : p.primary,
+      ),
       textSelectionTheme: TextSelectionThemeData(
         cursorColor: isDark ? p.secondary : p.primary,
         selectionColor: (isDark ? p.secondary : p.primary).withValues(alpha: 0.3),

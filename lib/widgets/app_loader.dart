@@ -16,7 +16,7 @@ class AppLoader extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation(AppColors.primary),
+            valueColor: AlwaysStoppedAnimation(AppColors.primaryAccent),
           ),
           if (message != null) ...[
             const SizedBox(height: 16),
