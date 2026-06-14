@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../models/section_model.dart';
 import '../../../../../models/lyric_segment_model.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -27,11 +27,18 @@ class InteractiveLyricsWidget extends StatefulWidget {
 
 class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
   int _playingIndex = -1;
+  // Tracks furthest segment reached so the counter never goes backwards.
+  int _highestPlayedIndex = -1;
   bool _isPlaying = false;
-  bool _userScrolled = false;
-  Timer? _scrollResumeTimer;
+  // Set to true after the outer page has been scrolled to the karaoke widget.
+  bool _hasScrolledPageToKaraoke = false;
+
   final ScrollController _scrollController = ScrollController();
+  // Key on the 300px SizedBox — used to (a) compute inner-scroll offsets and
+  // (b) on first play, scroll the outer CustomScrollView to reveal it.
+  final GlobalKey _karaokeBoxKey = GlobalKey();
   List<GlobalKey> _itemKeys = [];
+  final List<StreamSubscription> _subscriptions = [];
 
   List<LyricSegment> get _allLyricSegments {
     if (widget.lyricSegments != null) return widget.lyricSegments!;
@@ -60,24 +67,31 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
   }
 
   void _setupAudioListeners() {
-    widget.audioPlayer.onPlayerStateChanged.listen((state) {
-      if (mounted) {
-        setState(() {
-          _isPlaying = state == PlayerState.playing;
-          if (state == PlayerState.completed || state == PlayerState.stopped) {
-            _playingIndex = -1;
-          }
-        });
-      }
-    });
+    _subscriptions.add(widget.audioPlayer.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = state == PlayerState.playing;
+        if (state == PlayerState.completed || state == PlayerState.stopped) {
+          _playingIndex = -1;
+          _highestPlayedIndex = -1;
+          _hasScrolledPageToKaraoke = false;
+        }
+      });
+    }));
 
-    widget.audioPlayer.onPositionChanged.listen((pos) {
+    _subscriptions.add(widget.audioPlayer.onPositionChanged.listen((pos) {
       if (mounted) _syncHighlightToPosition(pos);
-    });
+    }));
 
-    widget.audioPlayer.onPlayerComplete.listen((_) {
-      if (mounted) setState(() { _isPlaying = false; _playingIndex = -1; });
-    });
+    _subscriptions.add(widget.audioPlayer.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = false;
+        _playingIndex = -1;
+        _highestPlayedIndex = -1;
+        _hasScrolledPageToKaraoke = false;
+      });
+    }));
   }
 
   void _syncHighlightToPosition(Duration pos) {
@@ -92,23 +106,68 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
       }
     }
     if (newIndex != _playingIndex) {
-      setState(() => _playingIndex = newIndex);
-      if (newIndex >= 0) _scrollToIndex(newIndex);
+      setState(() {
+        _playingIndex = newIndex;
+        if (newIndex > _highestPlayedIndex) _highestPlayedIndex = newIndex;
+      });
+      if (newIndex >= 0) {
+        // Scroll the outer page to the karaoke widget the first time a segment
+        // is actually matched — i.e. when audio has truly started playing.
+        if (!_hasScrolledPageToKaraoke) {
+          _hasScrolledPageToKaraoke = true;
+          _scrollPageToKaraoke();
+        }
+        _scrollKaraokeToIndex(newIndex);
+      }
     }
   }
 
-  void _scrollToIndex(int index) {
-    if (_userScrolled) return;
-    if (index < 0 || index >= _itemKeys.length) return;
-    final ctx = _itemKeys[index].currentContext;
-    if (ctx != null) {
+  // Scrolls the OUTER CustomScrollView to reveal the karaoke box (first play only).
+  void _scrollPageToKaraoke() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _karaokeBoxKey.currentContext;
+      if (ctx == null) return;
       Scrollable.ensureVisible(
         ctx,
-        alignment: 0.35,
+        alignment: 0.1,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  // Scrolls the INNER karaoke ListView to center the active segment.
+  // Only called while audio is playing (user can't manually scroll at that time).
+  void _scrollKaraokeToIndex(int index) {
+    if (index < 0 || index >= _itemKeys.length) return;
+    if (!_scrollController.hasClients) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final itemCtx = _itemKeys[index].currentContext;
+      final boxCtx = _karaokeBoxKey.currentContext;
+      if (itemCtx == null || boxCtx == null) return;
+
+      final itemBox = itemCtx.findRenderObject() as RenderBox?;
+      final containerBox = boxCtx.findRenderObject() as RenderBox?;
+      if (itemBox == null || containerBox == null) return;
+      if (!itemBox.attached || !containerBox.attached) return;
+
+      // Y of the item relative to the 300px container top (negative = above viewport).
+      final itemY = itemBox.localToGlobal(Offset.zero, ancestor: containerBox).dy;
+      final viewportHeight = _scrollController.position.viewportDimension;
+      final targetOffset = (_scrollController.offset + itemY - viewportHeight * 0.35).clamp(
+        _scrollController.position.minScrollExtent,
+        _scrollController.position.maxScrollExtent,
+      );
+
+      _scrollController.animateTo(
+        targetOffset,
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
       );
-    }
+    });
   }
 
   Future<void> _playSegment(int index) async {
@@ -120,7 +179,7 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
       setState(() {
         _playingIndex = index;
         _isPlaying = true;
-        _userScrolled = false;
+        if (index > _highestPlayedIndex) _highestPlayedIndex = index;
       });
     }
     widget.onSectionPractice?.call();
@@ -128,8 +187,11 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
 
   @override
   void dispose() {
-    _scrollResumeTimer?.cancel();
     _scrollController.dispose();
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+    _subscriptions.clear();
     super.dispose();
   }
 
@@ -148,13 +210,13 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
       );
     }
 
-    final completedCount = _playingIndex >= 0 ? _playingIndex + 1 : 0;
-    final progress = segments.isEmpty ? 0.0 : completedCount / segments.length;
+    final completedCount = _highestPlayedIndex >= 0 ? _highestPlayedIndex + 1 : 0;
+    final progress = completedCount / segments.length;
 
     return Column(
       children: [
-        // Karaoke window: fixed height, faded edges
         SizedBox(
+          key: _karaokeBoxKey,
           height: 300,
           child: ShaderMask(
             shaderCallback: (rect) => const LinearGradient(
@@ -164,42 +226,33 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
               stops: [0.0, 0.12, 0.88, 1.0],
             ).createShader(rect),
             blendMode: BlendMode.dstIn,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification is UserScrollNotification &&
-                    notification.direction != ScrollDirection.idle) {
-                  _userScrolled = true;
-                  _scrollResumeTimer?.cancel();
-                  _scrollResumeTimer = Timer(const Duration(seconds: 4), () {
-                    if (mounted) setState(() => _userScrolled = false);
-                  });
-                }
-                return false;
+            child: ListView.builder(
+              controller: _scrollController,
+              // Lock the list while audio plays — segments auto-scroll instead.
+              physics: _isPlaying
+                  ? const NeverScrollableScrollPhysics()
+                  : const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 90, horizontal: 8),
+              itemCount: segments.length,
+              itemBuilder: (context, index) {
+                final isCurrent = index == _playingIndex;
+                final isPast = _playingIndex >= 0 && index < _playingIndex;
+                final dist = _playingIndex >= 0 ? (index - _playingIndex).abs() : 99;
+                return _SegmentItem(
+                  key: _itemKeys[index],
+                  segment: segments[index],
+                  isCurrent: isCurrent,
+                  isPast: isPast,
+                  distanceFromCurrent: dist,
+                  onTap: () => _playSegment(index),
+                );
               },
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(vertical: 90, horizontal: 8),
-                itemCount: segments.length,
-                itemBuilder: (context, index) {
-                  final isCurrent = index == _playingIndex;
-                  final isPast = _playingIndex >= 0 && index < _playingIndex;
-                  final dist = _playingIndex >= 0 ? (index - _playingIndex).abs() : 99;
-                  return _SegmentItem(
-                    key: _itemKeys[index],
-                    segment: segments[index],
-                    isCurrent: isCurrent,
-                    isPast: isPast,
-                    distanceFromCurrent: dist,
-                    onTap: () => _playSegment(index),
-                  );
-                },
-              ),
             ),
           ),
         ),
 
-        // Progress bar (only while playing)
-        if (_playingIndex >= 0) ...[
+        // Progress bar — shown once playback has reached the first segment.
+        if (_highestPlayedIndex >= 0) ...[
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -305,9 +358,21 @@ class _SegmentItem extends StatelessWidget {
               SizedBox(
                 width: 28,
                 child: isCurrent
-                    ? Icon(Icons.graphic_eq_rounded, size: 20, color: AppColors.primaryAccent)
+                    ? SvgPicture.asset(
+                        'assets/images/Hohte_logo.optimized.svg',
+                        width: 22,
+                        height: 22,
+                        colorFilter: ColorFilter.mode(
+                          AppColors.primaryAccent,
+                          BlendMode.srcIn,
+                        ),
+                      )
                     : (isPast && distanceFromCurrent == 1
-                        ? Icon(Icons.check_circle_outline_rounded, size: 15, color: AppColors.textSecondary)
+                        ? Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 15,
+                            color: AppColors.textSecondary,
+                          )
                         : const SizedBox.shrink()),
               ),
               const SizedBox(width: 6),
