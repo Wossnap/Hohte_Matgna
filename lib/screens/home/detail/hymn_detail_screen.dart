@@ -263,8 +263,14 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
               ),
             ),
           ),
-          if (_isMainMelodyExpanded)
-            Padding(
+          // Keep the expanded content mounted (just hidden) when collapsed, so
+          // the AudioPlayerWidget / InteractiveLyricsWidget State survives a
+          // collapse→expand and audio keeps playing — otherwise re-expanding
+          // recreates them fresh and desyncs from the player (frozen bar /
+          // garbled audio / no replay), the same bug as scrolling off-screen.
+          Offstage(
+            offstage: !_isMainMelodyExpanded,
+            child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
@@ -371,6 +377,7 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                 ],
               ),
             ),
+          ),
         ],
       );
   }

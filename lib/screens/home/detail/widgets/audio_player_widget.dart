@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -41,13 +42,24 @@ class AudioPlayerWidget extends StatefulWidget {
   State<AudioPlayerWidget> createState() => _AudioPlayerWidgetState();
 }
 
-class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
+class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
+    with AutomaticKeepAliveClientMixin {
+  // Keep this widget's State alive when it scrolls off-screen inside the
+  // detail screen's SliverList. Otherwise scrolling away destroys the State
+  // mid-playback: the auto-replay logic (guarded by `mounted`) stops firing, and
+  // scrolling back recreates the State fresh — losing _completed/_loopCount and
+  // resuming into the native completed state (frozen progress bar, garbled audio).
+  @override
+  bool get wantKeepAlive => true;
+
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
   bool _isPlaying = false;
   bool _isLoading = true;
   int _sessionPlayIncrements = 0; // Track increments during this session
   final List<double> _playbackRates = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  // All audio stream subscriptions, cancelled in dispose() to avoid leaks.
+  final List<StreamSubscription> _subscriptions = [];
 
   // Auto-replay / loop state — LOCAL to this player so the main melody and each
   // section loop independently. Previously this was shared via the view-model,
@@ -56,7 +68,14 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   int _loopCount = 0;
   static const int _maxLoops = 15;
   bool _handlingCompletion = false;
-  
+  // True once playback has reached the end. resume() from a completed state is
+  // unreliable on Android (fails to restart / leaves the position stream
+  // frozen), so when this is set we restart with a fresh play() instead.
+  bool _completed = false;
+  // Mirror of the view-model playback rate, synced in build() so the restart
+  // path (which runs outside build, without context) can re-apply it.
+  double _playbackRate = 1.0;
+
   // Section boundaries
   Duration _sectionStart = Duration.zero;
   Duration _sectionEnd = Duration.zero;
@@ -131,30 +150,30 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     // onPlayerComplete, so we couldn't count loops or auto-stop at the limit.)
     widget.audioPlayer.setReleaseMode(ReleaseMode.stop);
 
-    widget.audioPlayer.onPlayerStateChanged.listen((state) {
+    _subscriptions.add(widget.audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() {
           _isPlaying = state == PlayerState.playing;
         });
       }
-    });
+    }));
 
-    widget.audioPlayer.onDurationChanged.listen((duration) {
+    _subscriptions.add(widget.audioPlayer.onDurationChanged.listen((duration) {
       if (mounted) {
         setState(() {
           _duration = duration;
           _isLoading = false;
         });
       }
-    });
+    }));
 
-    widget.audioPlayer.onPlayerStateChanged.listen((state) {
+    _subscriptions.add(widget.audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted && (state == PlayerState.playing || state == PlayerState.paused || state == PlayerState.completed)) {
         setState(() => _isLoading = false);
       }
-    });
+    }));
 
-    widget.audioPlayer.onPositionChanged.listen((position) {
+    _subscriptions.add(widget.audioPlayer.onPositionChanged.listen((position) {
       if (mounted) {
         // Track listened time for anti-cheat
         final now = DateTime.now();
@@ -177,10 +196,10 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           _position = position;
         });
       }
-    });
+    }));
 
     // Error handling to prevent infinite spinner
-    widget.audioPlayer.onLog.listen((log) {
+    _subscriptions.add(widget.audioPlayer.onLog.listen((log) {
       if (mounted) {
         final logLower = log.toLowerCase();
         if (logLower.contains('error') || logLower.contains('failed to set source')) {
@@ -188,11 +207,20 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           if (_isLoading) setState(() => _isLoading = false);
         }
       }
-    });
+    }));
 
-    widget.audioPlayer.onPlayerComplete.listen((_) {
+    _subscriptions.add(widget.audioPlayer.onPlayerComplete.listen((_) {
       if (mounted) _onPlaybackFinished();
-    });
+    }));
+  }
+
+  @override
+  void dispose() {
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+    _subscriptions.clear();
+    super.dispose();
   }
 
   /// Called when the current play reaches its end (full-file completion for the
@@ -202,6 +230,10 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   void _onPlaybackFinished() {
     if (_handlingCompletion) return;
     _handlingCompletion = true;
+    // Mark completed up-front: if the replay below fails for any reason, the
+    // manual play button will then take the fresh-restart path and recover,
+    // instead of resume()-ing into a frozen state.
+    _completed = true;
 
     // Anti-cheat: only count a play if enough of it was actually listened to.
     final totalDuration = _sectionDuration.inSeconds.toDouble();
@@ -217,15 +249,14 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     final restartPosition = _isSectionMode ? _sectionStart : Duration.zero;
 
     if (_loopCount < _maxLoops) {
-      // Auto-replay this same audio. Small delay avoids an immediate restart
-      // glitch and lets the player settle after completion.
+      // Auto-replay this same audio. Small delay lets the player settle after
+      // completion before we start the fresh play().
       Future.delayed(const Duration(milliseconds: 300), () async {
         if (!mounted) {
           _handlingCompletion = false;
           return;
         }
-        await widget.audioPlayer.seek(restartPosition);
-        await widget.audioPlayer.resume();
+        await _restartPlayback();
         _handlingCompletion = false;
       });
     } else {
@@ -239,6 +270,37 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         });
       }
       _handlingCompletion = false;
+    }
+  }
+
+  /// Restarts this audio from the beginning (section start in section mode) with
+  /// a fresh play(). Unlike resume() from a completed state, play() reliably
+  /// resets the native player and its position stream, so it's used for both
+  /// auto-replay and the manual play button after playback has ended.
+  Future<void> _restartPlayback() async {
+    final restartPosition = _isSectionMode ? _sectionStart : Duration.zero;
+    try {
+      if (kIsWeb) {
+        try {
+          final response = await ApiClient.fetchAudioBytes(widget.audioUrl);
+          await widget.audioPlayer.play(BytesSource(response.bodyBytes));
+        } catch (e) {
+          debugPrint('Web restart fallback to UrlSource: $e');
+          await widget.audioPlayer.play(UrlSource(widget.audioUrl));
+        }
+      } else {
+        await widget.audioPlayer.play(UrlSource(widget.audioUrl));
+      }
+      if (restartPosition > Duration.zero) {
+        await widget.audioPlayer.seek(restartPosition);
+      }
+      await widget.audioPlayer.setPlaybackRate(_playbackRate);
+      _completed = false;
+      _listenedTimeSeconds = 0;
+      _lastPositionUpdate = DateTime.now();
+      if (mounted) setState(() => _position = restartPosition);
+    } catch (e) {
+      debugPrint('Error restarting playback: $e');
     }
   }
 
@@ -256,13 +318,12 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
         }
         _handlingCompletion = false;
 
-        // In section mode, ensure we're at the section start before playing
-        if (_isSectionMode && _position < _sectionStart) {
-          await widget.audioPlayer.seek(_sectionStart);
-        }
-        
-        // Use resume if already set, or play if not
-        if (widget.audioPlayer.source == null) {
+        if (_completed) {
+          // Playback had ended — start fresh so the position stream resets
+          // (resume() from a completed state leaves the progress bar frozen).
+          await _restartPlayback();
+        } else if (widget.audioPlayer.source == null) {
+          // First play of this widget — set source and play.
           if (kIsWeb) {
             try {
               final response = await ApiClient.fetchAudioBytes(widget.audioUrl);
@@ -274,13 +335,18 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
           } else {
             await widget.audioPlayer.play(UrlSource(widget.audioUrl));
           }
+          widget.audioPlayer.setPlaybackRate(viewModel.playbackRate);
+          _lastPositionUpdate = DateTime.now(); // Reset for anti-cheat
         } else {
+          // Un-pausing mid-track — resume from current position.
+          if (_isSectionMode && _position < _sectionStart) {
+            await widget.audioPlayer.seek(_sectionStart);
+          }
           await widget.audioPlayer.resume();
+          widget.audioPlayer.setPlaybackRate(viewModel.playbackRate);
+          _lastPositionUpdate = DateTime.now(); // Reset for anti-cheat
         }
-        
-        widget.audioPlayer.setPlaybackRate(viewModel.playbackRate);
-        _lastPositionUpdate = DateTime.now(); // Reset for anti-cheat
-        // widget.onPlay?.call(); // Removed: call in _handleFinish instead for anti-cheat
+        // widget.onPlay?.call(); // Removed: call in _onPlaybackFinished instead for anti-cheat
       }
     } catch (e) {
       debugPrint('Audio playback error: $e');
@@ -338,7 +404,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // required by AutomaticKeepAliveClientMixin
     final viewModel = Provider.of<HymnDetailViewModel>(context);
+    _playbackRate = viewModel.playbackRate;
     final remainingLoops = _maxLoops - _loopCount;
 
     return Container(
