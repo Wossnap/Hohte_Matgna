@@ -82,6 +82,10 @@ class Section {
       for (final c in childrenRaw) {
         childrenList.add(Section.fromJson(c, progressSections));
       }
+      // Match the web app, which loads child sections `->orderBy('order')` at
+      // every nesting level (HymnPracticeController). The Flutter API returns
+      // them in default id order, so sort here to keep the order correct.
+      childrenList.sort((a, b) => a.order.compareTo(b.order));
     }
 
     final segmentsRaw = map['effective_lyric_segments'] ?? map['segments'] ?? map['lyric_segments'];

@@ -51,8 +51,13 @@ class HymnDetail {
     
     return HymnDetail(
       hymn: Hymn.fromJson(hymnRaw is Map<String, dynamic> ? hymnRaw : {}, progress),
+      // Sort root sections by `order` to match the web app. The web is served by
+      // HymnPracticeController which loads sections `->orderBy('order')` at every
+      // level, but Flutter's Api/PracticeController returns them in default id
+      // order — so without this the Flutter section list is mis-ordered.
       sections: sectionsRaw != null && sectionsRaw is List
-          ? sectionsRaw.map((e) => Section.fromJson(e, sectionProgressMap)).toList()
+          ? (sectionsRaw.map((e) => Section.fromJson(e, sectionProgressMap)).toList()
+            ..sort((a, b) => a.order.compareTo(b.order)))
           : [],
       hymnLyricSegments: lyricSegmentsRaw != null && lyricSegmentsRaw is List
           ? lyricSegmentsRaw.map((e) => LyricSegment.fromJson(e)).toList()
