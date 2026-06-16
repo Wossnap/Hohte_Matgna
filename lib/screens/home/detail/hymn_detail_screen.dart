@@ -336,22 +336,9 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                   ),
                   const SizedBox(height: 16),
                   if (viewModel.showLyricsGame)
-                    Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _buildGameStat('Score', viewModel.gameScore.toString()),
-                            _buildGameStat('Accuracy', '${viewModel.gameAccuracy}%'),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        LyricsGameWidget(
-                          lyrics: hymnDetail.hymn.content ?? '',
-                          onAnswerSubmitted: viewModel.submitGameAnswer,
-                          onReset: viewModel.resetGameState,
-                        ),
-                      ],
+                    LyricsGameWidget(
+                      gameContent: hymnDetail.hymn.gameContent,
+                      lyricsContent: hymnDetail.hymn.content,
                     )
                   else
                     Container(
@@ -443,15 +430,6 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildGameStat(String label, String value) {
-    return Column(
-      children: [
-        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryAccent)),
-        Text(label, style: AppTextStyles.caption),
-      ],
     );
   }
 }
