@@ -3,6 +3,7 @@ import '../../../../core/theme/app_colors.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../models/hymn_detail_model.dart';
+import '../../../../models/category_model.dart';
 
 class HymnHeaderWidget extends StatelessWidget {
   final HymnDetail hymn;
@@ -109,21 +110,50 @@ class HymnHeaderWidget extends StatelessWidget {
                   ),
                 ),
               ),
-            
-            const SizedBox(height: 16), // Reduced from 24
-            
-            // Subtitle (Synced with Website)
-            Text(
-              'Hymn Library',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: Colors.white.withValues(alpha: 0.8),
-                fontStyle: FontStyle.italic,
-                fontSize: 13,
-              ),
-            ),
+
+            // Category hierarchy breadcrumb ("Parent → Child"), matching the web
+            // hero. Only shown when the category has a parent chain.
+            if (hymn.hymn.category != null &&
+                hymn.hymn.category!.hierarchy.length > 1) ...[
+              const SizedBox(height: 8),
+              _buildCategoryBreadcrumb(hymn.hymn.category!.hierarchy),
+            ],
+
           ],
         ),
       ),
+    );
+  }
+
+  // Renders the category chain as "Root → … → Leaf". The leaf is emphasised;
+  // ancestors are dimmed, separated by a → arrow (matches the web hero).
+  Widget _buildCategoryBreadcrumb(List<Category> chain) {
+    final spans = <Widget>[];
+    for (var i = 0; i < chain.length; i++) {
+      final isLeaf = i == chain.length - 1;
+      spans.add(Text(
+        chain[i].name,
+        style: AppTextStyles.bodySmall.copyWith(
+          color: Colors.white.withValues(alpha: isLeaf ? 0.95 : 0.7),
+          fontStyle: FontStyle.italic,
+          fontWeight: isLeaf ? FontWeight.w600 : FontWeight.normal,
+          fontSize: 12,
+        ),
+      ));
+      if (!isLeaf) {
+        spans.add(Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Text(
+            '→',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
+          ),
+        ));
+      }
+    }
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: spans,
     );
   }
 }
