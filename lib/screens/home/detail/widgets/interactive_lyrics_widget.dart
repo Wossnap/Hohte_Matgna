@@ -25,7 +25,14 @@ class InteractiveLyricsWidget extends StatefulWidget {
   State<InteractiveLyricsWidget> createState() => _InteractiveLyricsWidgetState();
 }
 
-class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
+class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
+    with AutomaticKeepAliveClientMixin {
+  // Keep alive when scrolled off-screen in the detail screen's SliverList, so
+  // audio listeners and karaoke state survive scrolling (matches the audio
+  // player widget, which shares the same AudioPlayer).
+  @override
+  bool get wantKeepAlive => true;
+
   int _playingIndex = -1;
   // Tracks furthest segment reached so the counter never goes backwards.
   int _highestPlayedIndex = -1;
@@ -41,8 +48,16 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
   final List<StreamSubscription> _subscriptions = [];
 
   List<LyricSegment> get _allLyricSegments {
-    if (widget.lyricSegments != null) return widget.lyricSegments!;
-    return widget.sections?.expand((section) => section.lyricSegments).toList() ?? [];
+    final segments = widget.lyricSegments ??
+        widget.sections?.expand((section) => section.lyricSegments).toList() ??
+        [];
+    // Sort chronologically by start time — the API does not guarantee order, and
+    // the highlight/counter logic matches by array index, so an unsorted list
+    // makes the first position match land mid-way through (e.g. 9/10) and the
+    // monotonic counter then freezes. Matches the web app's sortedSegments.
+    final sorted = List<LyricSegment>.from(segments)
+      ..sort((a, b) => a.startMs.compareTo(b.startMs));
+    return sorted;
   }
 
   @override
@@ -74,9 +89,18 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
         if (state == PlayerState.completed || state == PlayerState.stopped) {
           _playingIndex = -1;
           _highestPlayedIndex = -1;
-          _hasScrolledPageToKaraoke = false;
+          // Note: _hasScrolledPageToKaraoke is intentionally NOT reset here — the
+          // outer page should auto-scroll to the karaoke only once (first play),
+          // never again on replay or a later manual play.
         }
       });
+      // On auto-replay the audio restarts from the top, so reset the karaoke's
+      // INNER viewport back to the first segment — otherwise it stays scrolled
+      // down near where the previous loop ended. (Inner viewport only — does not
+      // move the outer page.)
+      if (state == PlayerState.completed || state == PlayerState.stopped) {
+        _scrollKaraokeToTop();
+      }
     }));
 
     _subscriptions.add(widget.audioPlayer.onPositionChanged.listen((pos) {
@@ -89,9 +113,23 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
         _isPlaying = false;
         _playingIndex = -1;
         _highestPlayedIndex = -1;
-        _hasScrolledPageToKaraoke = false;
+        // _hasScrolledPageToKaraoke intentionally left set (one-time page scroll).
       });
+      _scrollKaraokeToTop();
     }));
+  }
+
+  // Resets the INNER karaoke ListView back to the first segment. Used on
+  // completion so the next auto-replay starts with the viewport at the top.
+  void _scrollKaraokeToTop() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.minScrollExtent,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   void _syncHighlightToPosition(Duration pos) {
@@ -197,6 +235,7 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // required by AutomaticKeepAliveClientMixin
     final segments = _allLyricSegments;
 
     if (segments.isEmpty) {
