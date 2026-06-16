@@ -267,10 +267,9 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
             blendMode: BlendMode.dstIn,
             child: ListView.builder(
               controller: _scrollController,
-              // Lock the list while audio plays — segments auto-scroll instead.
-              physics: _isPlaying
-                  ? const NeverScrollableScrollPhysics()
-                  : const AlwaysScrollableScrollPhysics(),
+              // Never manually scrollable — the list always auto-scrolls to the
+              // active segment, even when paused. Tapping a segment seeks audio.
+              physics: const NeverScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(vertical: 90, horizontal: 8),
               itemCount: segments.length,
               itemBuilder: (context, index) {
