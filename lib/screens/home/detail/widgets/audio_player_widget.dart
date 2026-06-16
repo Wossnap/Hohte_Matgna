@@ -122,6 +122,15 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   }
 
   void _setupAudioPlayer() {
+    // CRITICAL for auto-replay: the default ReleaseMode.release frees the
+    // native player when playback completes, so onPlayerComplete fires but the
+    // subsequent seek()+resume() silently do nothing (the source is gone) — the
+    // audio never loops. ReleaseMode.stop keeps the source loaded after the end
+    // so we can seek back to the start and resume for each loop. (We can't use
+    // ReleaseMode.loop: it loops natively forever and never fires
+    // onPlayerComplete, so we couldn't count loops or auto-stop at the limit.)
+    widget.audioPlayer.setReleaseMode(ReleaseMode.stop);
+
     widget.audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted) {
         setState(() {
