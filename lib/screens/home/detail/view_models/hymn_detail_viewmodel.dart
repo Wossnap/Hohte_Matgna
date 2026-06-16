@@ -190,7 +190,14 @@ class HymnDetailViewModel extends ChangeNotifier {
 
   // Game Methods
   void toggleLyricsGame() {
-    _showLyricsGame = !_showLyricsGame;
+    setLyricsGame(!_showLyricsGame);
+  }
+
+  /// Explicitly select Lyrics (false) or Game (true) — used by the inline
+  /// Lyrics | Game segmented toggle. No-op if already in that mode.
+  void setLyricsGame(bool showGame) {
+    if (_showLyricsGame == showGame) return;
+    _showLyricsGame = showGame;
     if (_showLyricsGame) {
       resetGameState();
     }

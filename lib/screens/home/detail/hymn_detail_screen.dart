@@ -292,24 +292,49 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                   ),
                   const SizedBox(height: 24),
                   
-                  // Lyrics Section Header with Game Toggle
+                  // Lyrics Section Header (karaoke — always shown, like the web)
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Lyrics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryAccent)),
-                      OutlinedButton.icon(
-                        onPressed: viewModel.toggleLyricsGame,
-                        icon: Icon(viewModel.showLyricsGame ? Icons.menu_book : Icons.videogame_asset),
-                        label: Text(viewModel.showLyricsGame ? 'Show Lyrics' : 'Play Game'),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: AppColors.primaryAccent),
-                          foregroundColor: AppColors.primaryAccent,
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  
+
+                  if (hymnDetail.hymnLyricSegments.isNotEmpty)
+                    InteractiveLyricsWidget(
+                      audioPlayer: _mainAudioPlayer,
+                      lyricSegments: hymnDetail.hymnLyricSegments,
+                    )
+                  else
+                    const SizedBox.shrink(),
+
+                  const SizedBox(height: 24),
+                  const Divider(height: 1),
+                  const SizedBox(height: 24),
+
+                  // Full Lyrics Display Section with inline Lyrics | Game toggle
+                  // (the toggle switches the full lyrics text <-> game, like the web)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.notes_rounded, color: AppColors.primaryAccent, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Full Lyrics',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                      _buildLyricsGameToggle(viewModel),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                   if (viewModel.showLyricsGame)
                     Column(
                       children: [
@@ -328,52 +353,25 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                         ),
                       ],
                     )
-                  else if (hymnDetail.hymnLyricSegments.isNotEmpty)
-                    InteractiveLyricsWidget(
-                      audioPlayer: _mainAudioPlayer,
-                      lyricSegments: hymnDetail.hymnLyricSegments,
-                    )
                   else
-                    const SizedBox.shrink(),
-
-                  const SizedBox(height: 24),
-                  const Divider(height: 1),
-                  const SizedBox(height: 24),
-
-                  // Full Lyrics Display Section
-                  Row(
-                    children: [
-                      Icon(Icons.notes_rounded, color: AppColors.primaryAccent, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Full Lyrics',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryAccent,
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+                      ),
+                      child: SelectableText(
+                        hymnDetail.fullLyrics,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          height: 1.8,
+                          fontSize: 16,
+                          color: AppColors.textPrimary.withValues(alpha: 0.9),
+                          letterSpacing: 0.3,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
                     ),
-                    child: SelectableText(
-                      hymnDetail.fullLyrics,
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        height: 1.8,
-                        fontSize: 16,
-                        color: AppColors.textPrimary.withValues(alpha: 0.9),
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -383,6 +381,70 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
   }
 
   // Removed unused _buildStatCard (UI helper) — not referenced anymore
+
+  // Inline segmented toggle (Lyrics | Game) that switches the same card,
+  // matching the web. Active segment is filled with the brand accent.
+  Widget _buildLyricsGameToggle(HymnDetailViewModel viewModel) {
+    Widget segment({
+      required IconData icon,
+      required String label,
+      required bool active,
+      required VoidCallback onTap,
+    }) {
+      return GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? AppColors.primaryAccent : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: active ? Colors.white : AppColors.primaryAccent),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: active ? Colors.white : AppColors.primaryAccent,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppColors.primaryAccent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primaryAccent.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          segment(
+            icon: Icons.menu_book,
+            label: 'Lyrics',
+            active: !viewModel.showLyricsGame,
+            onTap: () => viewModel.setLyricsGame(false),
+          ),
+          segment(
+            icon: Icons.videogame_asset,
+            label: 'Game',
+            active: viewModel.showLyricsGame,
+            onTap: () => viewModel.setLyricsGame(true),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildGameStat(String label, String value) {
     return Column(
