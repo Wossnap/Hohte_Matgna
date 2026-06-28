@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../models/section_model.dart';
 import '../../../../../models/lyric_segment_model.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../view_models/hymn_detail_viewmodel.dart';
 
 class InteractiveLyricsWidget extends StatefulWidget {
   final AudioPlayer audioPlayer;
@@ -26,7 +28,7 @@ class InteractiveLyricsWidget extends StatefulWidget {
 }
 
 class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
   // Keep alive when scrolled off-screen in the detail screen's SliverList, so
   // audio listeners and karaoke state survive scrolling (matches the audio
   // player widget, which shares the same AudioPlayer).
@@ -37,8 +39,20 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
   // Tracks furthest segment reached so the counter never goes backwards.
   int _highestPlayedIndex = -1;
   bool _isPlaying = false;
+  // True while the hymn is being recorded — the karaoke then follows the
+  // recording's elapsed time instead of audio playback (matches the web).
+  bool _isRecording = false;
+  // True while alternating playback is running — the karaoke then follows the
+  // reference phase's position pushed via the view-model.
+  bool _isAlternate = false;
+  HymnDetailViewModel? _viewModel;
   // Set to true after the outer page has been scrolled to the karaoke widget.
   bool _hasScrolledPageToKaraoke = false;
+
+  // Gentle "breathing" pulse on the active lyric line, matching the web's
+  // animate-pulse-once (continuous subtle scale on the current segment).
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseScale;
 
   final ScrollController _scrollController = ScrollController();
   // Key on the 300px SizedBox — used to (a) compute inner-scroll offsets and
@@ -65,6 +79,36 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
     super.initState();
     _initKeys();
     _setupAudioListeners();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+    _pulseScale = Tween<double>(begin: 1.0, end: 1.03)
+        .animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Attach to the shared view-model's recording notifiers once, so the karaoke
+    // can follow the recording's elapsed time while recording.
+    if (_viewModel == null) {
+      try {
+        _viewModel = Provider.of<HymnDetailViewModel>(context, listen: false);
+        _viewModel!.isRecording.addListener(_onRecordingChanged);
+        _viewModel!.recordingElapsedMs.addListener(_onRecordingElapsed);
+        _viewModel!.isAlternatePlaybackActive.addListener(_onAlternateChanged);
+        _viewModel!.alternateElapsedMs.addListener(_onAlternateElapsed);
+        // Seed current values: addListener does NOT fire with the existing value,
+        // so if this widget is (re)built while a mode is already active — e.g. the
+        // karaoke is rebuilt when the screen collapses into alternating playback —
+        // we'd otherwise miss the transition and never follow along.
+        _isRecording = _viewModel!.isRecording.value;
+        _isAlternate = _viewModel!.isAlternatePlaybackActive.value;
+      } catch (_) {
+        _viewModel = null; // no view-model ancestor — recording sync unavailable
+      }
+    }
   }
 
   @override
@@ -74,6 +118,40 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
         oldWidget.sections != widget.sections) {
       _initKeys();
     }
+  }
+
+  void _onRecordingChanged() {
+    final rec = _viewModel?.isRecording.value ?? false;
+    if (rec == _isRecording || !mounted) return;
+    setState(() {
+      _isRecording = rec;
+      _playingIndex = -1;
+      _highestPlayedIndex = -1;
+    });
+    _scrollKaraokeToTop();
+  }
+
+  void _onRecordingElapsed() {
+    if (!_isRecording || !mounted) return;
+    // Inner viewport follows the segment; never move the outer page while the
+    // user is at the recorder below.
+    _applyHighlightForMs(_viewModel!.recordingElapsedMs.value, allowPageScroll: false);
+  }
+
+  void _onAlternateChanged() {
+    final active = _viewModel?.isAlternatePlaybackActive.value ?? false;
+    if (active == _isAlternate || !mounted) return;
+    setState(() {
+      _isAlternate = active;
+      _playingIndex = -1;
+      _highestPlayedIndex = -1;
+    });
+    _scrollKaraokeToTop();
+  }
+
+  void _onAlternateElapsed() {
+    if (!_isAlternate || !mounted) return;
+    _applyHighlightForMs(_viewModel!.alternateElapsedMs.value, allowPageScroll: false);
   }
 
   void _initKeys() {
@@ -133,8 +211,22 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
   }
 
   void _syncHighlightToPosition(Duration pos) {
-    if (!_isPlaying) return;
-    final ms = pos.inMilliseconds;
+    // Recording / alternating playback drive the karaoke from their own elapsed
+    // notifiers, so ignore raw audio-position updates while either is active —
+    // otherwise the two sources fight and the highlight glitches when recording
+    // is started mid-playback.
+    if (_isRecording || _isAlternate) return;
+    // Apply on every position change — including while paused — so seeking on the
+    // audio progress bar jumps the highlight straight to the segment at that
+    // time (previously a paused seek was dropped, leaving nothing highlighted).
+    // The one-time outer-page scroll is gated to real playback so a paused seek
+    // doesn't yank the whole page.
+    _applyHighlightForMs(pos.inMilliseconds, allowPageScroll: _isPlaying);
+  }
+
+  // Highlights the segment containing [ms] and scrolls to follow it. Shared by
+  // audio playback (allowPageScroll: true) and recording (allowPageScroll: false).
+  void _applyHighlightForMs(int ms, {required bool allowPageScroll}) {
     int newIndex = -1;
     final segments = _allLyricSegments;
     for (int i = 0; i < segments.length; i++) {
@@ -151,7 +243,7 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
       if (newIndex >= 0) {
         // Scroll the outer page to the karaoke widget the first time a segment
         // is actually matched — i.e. when audio has truly started playing.
-        if (!_hasScrolledPageToKaraoke) {
+        if (allowPageScroll && !_hasScrolledPageToKaraoke) {
           _hasScrolledPageToKaraoke = true;
           _scrollPageToKaraoke();
         }
@@ -192,10 +284,13 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
       if (itemBox == null || containerBox == null) return;
       if (!itemBox.attached || !containerBox.attached) return;
 
-      // Y of the item relative to the 300px container top (negative = above viewport).
+      // Y of the item relative to the container top (negative = above viewport).
       final itemY = itemBox.localToGlobal(Offset.zero, ancestor: containerBox).dy;
       final viewportHeight = _scrollController.position.viewportDimension;
-      final targetOffset = (_scrollController.offset + itemY - viewportHeight * 0.35).clamp(
+      // Center the active line vertically so the window shows exactly one past
+      // and one upcoming segment around it (matches the Laravel 3-line window).
+      final itemHeight = itemBox.size.height;
+      final targetOffset = (_scrollController.offset + itemY - (viewportHeight - itemHeight) / 2).clamp(
         _scrollController.position.minScrollExtent,
         _scrollController.position.maxScrollExtent,
       );
@@ -225,6 +320,11 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
 
   @override
   void dispose() {
+    _viewModel?.isRecording.removeListener(_onRecordingChanged);
+    _viewModel?.recordingElapsedMs.removeListener(_onRecordingElapsed);
+    _viewModel?.isAlternatePlaybackActive.removeListener(_onAlternateChanged);
+    _viewModel?.alternateElapsedMs.removeListener(_onAlternateElapsed);
+    _pulseController.dispose();
     _scrollController.dispose();
     for (final sub in _subscriptions) {
       sub.cancel();
@@ -256,7 +356,10 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
       children: [
         SizedBox(
           key: _karaokeBoxKey,
-          height: 300,
+          // Sized to show a 3-segment window (1 past · current · 1 upcoming),
+          // matching the Laravel KaraokeLyrics.vue which renders exactly those
+          // three. The edge fade (ShaderMask) hides any sliver of a 4th line.
+          height: 220,
           child: ShaderMask(
             shaderCallback: (rect) => const LinearGradient(
               begin: Alignment.topCenter,
@@ -270,13 +373,18 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
               // Never manually scrollable — the list always auto-scrolls to the
               // active segment, even when paused. Tapping a segment seeks audio.
               physics: const NeverScrollableScrollPhysics(),
+              // Keep every segment built (lyric lists are short). Otherwise a
+              // large seek jumps the highlight to an off-screen segment the lazy
+              // builder hasn't realised yet, so _scrollKaraokeToIndex can't find
+              // its context to scroll to it and the window stays on the old lines.
+              cacheExtent: 100000,
               padding: const EdgeInsets.symmetric(vertical: 90, horizontal: 8),
               itemCount: segments.length,
               itemBuilder: (context, index) {
                 final isCurrent = index == _playingIndex;
                 final isPast = _playingIndex >= 0 && index < _playingIndex;
                 final dist = _playingIndex >= 0 ? (index - _playingIndex).abs() : 99;
-                return _SegmentItem(
+                final item = _SegmentItem(
                   key: _itemKeys[index],
                   segment: segments[index],
                   isCurrent: isCurrent,
@@ -284,6 +392,10 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
                   distanceFromCurrent: dist,
                   onTap: () => _playSegment(index),
                 );
+                // Breathe the active line. ScaleTransition uses a Transform, so
+                // it doesn't affect layout — the scroll-centering math (which
+                // measures the unscaled render box) is unaffected.
+                return isCurrent ? ScaleTransition(scale: _pulseScale, child: item) : item;
               },
             ),
           ),
@@ -316,11 +428,25 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
                 const SizedBox(height: 6),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 4,
-                    backgroundColor: AppColors.primaryAccent.withValues(alpha: 0.15),
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryAccent),
+                  child: Container(
+                    height: 4,
+                    color: AppColors.primaryAccent.withValues(alpha: 0.15),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: progress.clamp(0.0, 1.0)),
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                      builder: (context, value, _) => FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: value,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [AppColors.primaryAccent, AppColors.secondary],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -347,6 +473,48 @@ class _SegmentItem extends StatelessWidget {
     required this.distanceFromCurrent,
     required this.onTap,
   });
+
+  // Per-line leading glyph, matching the web: brand logo on the active line,
+  // a check on the immediate past line, and a clock on the next upcoming line
+  // (the last two inside subtle tinted circles). Neutral tints so both
+  // light and dark mode stay legible.
+  Widget _buildLeadingIcon() {
+    if (isCurrent) {
+      return SvgPicture.asset(
+        'assets/images/Hohte_logo.svg',
+        width: 22,
+        height: 22,
+        colorFilter: ColorFilter.mode(AppColors.primaryAccent, BlendMode.srcIn),
+      );
+    }
+    if (isPast && distanceFromCurrent == 1) {
+      return Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.textSecondary.withValues(alpha: 0.15),
+        ),
+        child: Icon(Icons.check_rounded, size: 14, color: AppColors.textSecondary),
+      );
+    }
+    if (!isPast && distanceFromCurrent == 1) {
+      return Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.textSecondary.withValues(alpha: 0.08),
+        ),
+        child: Icon(
+          Icons.schedule_rounded,
+          size: 13,
+          color: AppColors.textSecondary.withValues(alpha: 0.7),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -393,31 +561,13 @@ class _SegmentItem extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 28,
-                child: isCurrent
-                    ? SvgPicture.asset(
-                        'assets/images/Hohte_logo.optimized.svg',
-                        width: 22,
-                        height: 22,
-                        colorFilter: ColorFilter.mode(
-                          AppColors.primaryAccent,
-                          BlendMode.srcIn,
-                        ),
-                      )
-                    : (isPast && distanceFromCurrent == 1
-                        ? Icon(
-                            Icons.check_circle_outline_rounded,
-                            size: 15,
-                            color: AppColors.textSecondary,
-                          )
-                        : const SizedBox.shrink()),
-              ),
+              SizedBox(width: 34, child: Center(child: _buildLeadingIcon())),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   segment.text,
                   style: TextStyle(
+                    fontFamily: 'serif',
                     fontSize: isCurrent ? 22 : 17,
                     fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
                     color: isCurrent ? AppColors.primaryAccent : AppColors.textPrimary,
