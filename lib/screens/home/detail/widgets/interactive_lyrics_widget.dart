@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:visibility_detector/visibility_detector.dart';
+import '../../../../core/utils/wakelock_manager.dart';
 import '../../../../models/section_model.dart';
 import '../../../../../models/lyric_segment_model.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -53,6 +55,12 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
   // animate-pulse-once (continuous subtle scale on the current segment).
   late final AnimationController _pulseController;
   late final Animation<double> _pulseScale;
+
+  // Whether the karaoke is currently on-screen. Combined with playback state to
+  // hold a wakelock only while the user is actually watching the karaoke during
+  // main-audio playback (so the screen doesn't dim/lock mid-song).
+  bool _isKaraokeVisible = false;
+  final Key _visibilityKey = UniqueKey();
 
   final ScrollController _scrollController = ScrollController();
   // Key on the 300px SizedBox — used to (a) compute inner-scroll offsets and
@@ -172,6 +180,7 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
           // never again on replay or a later manual play.
         }
       });
+      _updateKaraokeWakelock();
       // On auto-replay the audio restarts from the top, so reset the karaoke's
       // INNER viewport back to the first segment — otherwise it stays scrolled
       // down near where the previous loop ended. (Inner viewport only — does not
@@ -208,6 +217,17 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
         curve: Curves.easeOutCubic,
       );
     });
+  }
+
+  // Hold a wakelock only while the main audio is playing AND the karaoke is on
+  // screen — so watching the lyrics doesn't let the screen dim/lock, but it's
+  // released as soon as playback stops or the user scrolls away.
+  void _updateKaraokeWakelock() {
+    if (_isPlaying && _isKaraokeVisible) {
+      WakelockManager.acquire('karaoke');
+    } else {
+      WakelockManager.release('karaoke');
+    }
   }
 
   void _syncHighlightToPosition(Duration pos) {
@@ -324,6 +344,7 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
     _viewModel?.recordingElapsedMs.removeListener(_onRecordingElapsed);
     _viewModel?.isAlternatePlaybackActive.removeListener(_onAlternateChanged);
     _viewModel?.alternateElapsedMs.removeListener(_onAlternateElapsed);
+    WakelockManager.release('karaoke');
     _pulseController.dispose();
     _scrollController.dispose();
     for (final sub in _subscriptions) {
@@ -354,7 +375,17 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
 
     return Column(
       children: [
-        SizedBox(
+        VisibilityDetector(
+          key: _visibilityKey,
+          onVisibilityChanged: (info) {
+            if (!mounted) return;
+            final visible = info.visibleFraction > 0.1;
+            if (visible != _isKaraokeVisible) {
+              _isKaraokeVisible = visible;
+              _updateKaraokeWakelock();
+            }
+          },
+          child: SizedBox(
           key: _karaokeBoxKey,
           // Sized to show a 3-segment window (1 past · current · 1 upcoming),
           // matching the Laravel KaraokeLyrics.vue which renders exactly those
@@ -398,6 +429,7 @@ class _InteractiveLyricsWidgetState extends State<InteractiveLyricsWidget>
                 return isCurrent ? ScaleTransition(scale: _pulseScale, child: item) : item;
               },
             ),
+          ),
           ),
         ),
 

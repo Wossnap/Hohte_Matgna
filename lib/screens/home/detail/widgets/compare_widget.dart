@@ -8,7 +8,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:mobile/core/theme/app_colors.dart';
 import 'package:mobile/core/theme/app_text_styles.dart';
 import 'package:mobile/providers/practice_provider.dart';
+import 'package:mobile/screens/home/detail/view_models/hymn_detail_viewmodel.dart';
 import 'package:mobile/core/api/api_client.dart';
+import 'package:mobile/core/utils/wakelock_manager.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:mobile/screens/home/detail/widgets/note_comparison_graph.dart';
 import 'live_compare_widget.dart';
@@ -20,6 +22,10 @@ class CompareWidget extends StatefulWidget {
   final int? playableId; // Optional section ID
   final String label;
   final bool isInteractive;
+  // The main melody's audio player (hymn-level only). Passed to the alternating
+  // playback so it reuses the already-prepared reference instead of downloading
+  // it again (~20s on first tap) and so the karaoke follows it natively.
+  final AudioPlayer? mainAudioPlayer;
 
   const CompareWidget({
     super.key,
@@ -28,6 +34,7 @@ class CompareWidget extends StatefulWidget {
     this.playableId,
     this.label = 'Compare with reference',
     this.isInteractive = false,
+    this.mainAudioPlayer,
   });
 
   @override
@@ -44,6 +51,7 @@ class _CompareWidgetState extends State<CompareWidget> {
   bool _isPaused = false;
   bool _isSubmitting = false;
   bool _recordingCompleted = false; // New state
+  bool _preparing = false; // Between countdown end and recorder actually starting
   int _countdown = 0;
   Timer? _countdownTimer;
   Duration _maxDuration = Duration.zero;
@@ -52,15 +60,17 @@ class _CompareWidgetState extends State<CompareWidget> {
   
   String? _recordedFilePath;
   bool _isPlayingPlayback = false;
+  Duration _playbackPosition = Duration.zero;
+  Duration _playbackDuration = Duration.zero;
   
   // Scoring State
   String? _errorMessage;
   String? _successMessage;
   Attempt? _latestAttempt;
-  String _algorithm = 'default';
+  final String _algorithm = 'default';
   
-  // UI State
-  bool _showKeys = false;
+  // UI State — graph shows automatically; note sequences are hidden until asked.
+  bool _showGraph = true;
   bool _showNotes = false;
   
   List<double> _breakpoints = [];
@@ -70,9 +80,40 @@ class _CompareWidgetState extends State<CompareWidget> {
   void initState() {
     super.initState();
     _playbackPlayer.onPlayerComplete.listen((_) {
-      if (mounted) setState(() => _isPlayingPlayback = false);
+      if (mounted) {
+        setState(() {
+          _isPlayingPlayback = false;
+          _playbackPosition = Duration.zero;
+        });
+      }
+    });
+    _playbackPlayer.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _playbackPosition = p);
+    });
+    _playbackPlayer.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _playbackDuration = d);
     });
     _loadBreakpoints();
+  }
+
+  // Drive the karaoke's recording sync (hymn-level only — a section recording
+  // must not animate the main hymn karaoke). Mirrors the web passing
+  // isRecording / recordingElapsedMs into KaraokeLyrics.
+  void _setKaraokeRecording(bool recording, {int elapsedMs = 0}) {
+    if (widget.playableType != 'hymn' || !mounted) return;
+    try {
+      final vm = Provider.of<HymnDetailViewModel>(context, listen: false);
+      if (recording) vm.recordingElapsedMs.value = elapsedMs;
+      vm.isRecording.value = recording;
+    } catch (_) {}
+  }
+
+  void _updateKaraokeElapsed(int ms) {
+    if (widget.playableType != 'hymn' || !mounted) return;
+    try {
+      Provider.of<HymnDetailViewModel>(context, listen: false)
+          .recordingElapsedMs.value = ms;
+    } catch (_) {}
   }
 
   Future<void> _loadBreakpoints() async {
@@ -88,6 +129,8 @@ class _CompareWidgetState extends State<CompareWidget> {
 
   @override
   void dispose() {
+    // Safety net if we're torn down mid-recording.
+    WakelockManager.release('recording');
     _audioRecorder.dispose();
     _playbackPlayer.dispose();
     _helperPlayer.dispose();
@@ -97,6 +140,15 @@ class _CompareWidgetState extends State<CompareWidget> {
   }
 
   Future<void> _startFlow() async {
+    // Ask for the mic up-front so the countdown isn't followed by a permission
+    // prompt / failure, and so recording can start the instant it ends.
+    final status = await Permission.microphone.request();
+    if (!mounted) return;
+    if (!status.isGranted) {
+      setState(() => _errorMessage = 'Microphone permission denied');
+      return;
+    }
+
     setState(() {
       _errorMessage = null;
       _successMessage = null;
@@ -109,47 +161,31 @@ class _CompareWidgetState extends State<CompareWidget> {
         timer.cancel();
         return;
       }
-      setState(() {
-        if (_countdown > 0) {
-          _countdown--;
-        } else {
-          timer.cancel();
-          _countdownTimer = null;
-          _beginRecording();
-        }
-      });
+      // When the count would hit zero, begin immediately and switch straight to
+      // the "preparing" state in the SAME frame — otherwise there's a ~1s window
+      // where _countdown == 0 but recording hasn't started, and the Start button
+      // flashes back.
+      if (_countdown <= 1) {
+        timer.cancel();
+        _countdownTimer = null;
+        setState(() {
+          _countdown = 0;
+          _preparing = true;
+        });
+        _beginRecording();
+      } else {
+        setState(() => _countdown--);
+      }
     });
   }
 
   Future<void> _beginRecording() async {
-    final status = await Permission.microphone.request();
-    if (!mounted || !status.isGranted) return;
+    if (!mounted) return;
+    // Keep the "preparing" UI up so the Start button doesn't flash back while
+    // the recorder spins up.
+    setState(() => _preparing = true);
 
     try {
-      final provider = Provider.of<PracticeProvider>(context, listen: false);
-      final refUrl = widget.playableType == 'hymn' 
-          ? provider.currentHymn?.hymn.audioUrl 
-          : provider.currentHymn?.sections.where((s) => s.id == widget.playableId).firstOrNull?.audioUrl;
-
-      if (refUrl == null) {
-        setState(() => _errorMessage = 'Reference audio not found');
-        return;
-      }
-
-      // Load reference to get duration if not already known
-      if (kIsWeb) {
-        try {
-          final response = await ApiClient.fetchAudioBytes(refUrl);
-          await _helperPlayer.setSource(BytesSource(response.bodyBytes));
-        } catch (e) {
-          await _helperPlayer.setSource(UrlSource(refUrl));
-        }
-      } else {
-        await _helperPlayer.setSource(UrlSource(refUrl));
-      }
-      
-      _maxDuration = await _helperPlayer.getDuration() ?? const Duration(seconds: 30);
-
       String? path;
       if (!kIsWeb) {
         final tempDir = await getTemporaryDirectory();
@@ -158,7 +194,10 @@ class _CompareWidgetState extends State<CompareWidget> {
         // PCM .wav is detected as audio/x-wav and rejected.
         path = '${tempDir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
       }
-      
+
+      // Start the recorder IMMEDIATELY — do not block on loading the reference
+      // audio for its duration first (that network load took several seconds,
+      // during which the Start button reappeared and recording started late).
       await _audioRecorder.start(
         RecordConfig(
           encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc,
@@ -169,16 +208,86 @@ class _CompareWidgetState extends State<CompareWidget> {
         path: path ?? '',
       );
 
+      if (!mounted) return;
       setState(() {
         _isRecording = true;
+        _preparing = false;
         _isPaused = false;
         _recordedFilePath = null;
         _elapsed = Duration.zero;
+        _maxDuration = Duration.zero; // resolved in the background below
       });
 
+      // Keep the screen on while recording so an auto-dim/lock doesn't suspend
+      // the recorder/timer mid-take.
+      WakelockManager.acquire('recording');
+      _setKaraokeRecording(true, elapsedMs: 0); // start karaoke recording sync
       _startTimer();
+      _resolveMaxDuration(); // fire-and-forget
     } catch (e) {
-      setState(() => _errorMessage = 'Failed to start recording: $e');
+      if (mounted) {
+        setState(() {
+          _preparing = false;
+          _errorMessage = 'Failed to start recording: $e';
+        });
+      }
+    }
+  }
+
+  /// Reference duration (seconds) known from the model, without any network.
+  int? _knownReferenceDurationSeconds() {
+    final provider = Provider.of<PracticeProvider>(context, listen: false);
+    if (widget.playableType == 'hymn') {
+      return provider.currentHymn?.hymn.duration;
+    }
+    return provider.currentHymn?.sections
+        .where((s) => s.id == widget.playableId)
+        .firstOrNull
+        ?.duration;
+  }
+
+  /// Determines the hard-stop duration = reference length + buffer, matching the
+  /// web (`getRecordingBuffer`: at least 2s, at most 5s, ~50% of the clip).
+  /// Prefers the model's known duration (instant); only falls back to loading
+  /// the reference audio metadata if that's missing.
+  Future<void> _resolveMaxDuration() async {
+    int? refSeconds = _knownReferenceDurationSeconds();
+
+    if (refSeconds == null || refSeconds <= 0) {
+      try {
+        final provider = Provider.of<PracticeProvider>(context, listen: false);
+        final refUrl = widget.playableType == 'hymn'
+            ? provider.currentHymn?.hymn.audioUrl
+            : provider.currentHymn?.sections
+                .where((s) => s.id == widget.playableId)
+                .firstOrNull
+                ?.audioUrl;
+        if (refUrl != null) {
+          if (kIsWeb) {
+            try {
+              final r = await ApiClient.fetchAudioBytes(refUrl);
+              await _helperPlayer.setSource(BytesSource(r.bodyBytes));
+            } catch (_) {
+              await _helperPlayer.setSource(UrlSource(refUrl));
+            }
+          } else {
+            await _helperPlayer.setSource(UrlSource(refUrl));
+          }
+          final d = await _helperPlayer.getDuration();
+          if (d != null) refSeconds = d.inSeconds;
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted || !_isRecording) return;
+    final resolved = refSeconds;
+    if (resolved != null && resolved > 0) {
+      final buffer = (resolved * 0.5).clamp(2.0, 5.0);
+      setState(() => _maxDuration =
+          Duration(milliseconds: ((resolved + buffer) * 1000).round()));
+    } else {
+      // Safety cap if the duration can't be determined at all.
+      setState(() => _maxDuration = const Duration(seconds: 180));
     }
   }
 
@@ -192,10 +301,12 @@ class _CompareWidgetState extends State<CompareWidget> {
       if (!_isPaused) {
         setState(() {
           _elapsed += const Duration(milliseconds: 100);
-          if (_elapsed >= _maxDuration) {
+          // Auto-stop at reference length + buffer, once it's been resolved.
+          if (_maxDuration > Duration.zero && _elapsed >= _maxDuration) {
             _stopRecording();
           }
         });
+        _updateKaraokeElapsed(_elapsed.inMilliseconds); // sync karaoke highlight
       }
     });
   }
@@ -215,6 +326,8 @@ class _CompareWidgetState extends State<CompareWidget> {
   Future<void> _cancelRecording() async {
     _elapsedTimer?.cancel();
     _countdownTimer?.cancel();
+    _setKaraokeRecording(false);
+    WakelockManager.release('recording');
     await _audioRecorder.stop();
     setState(() {
       _isRecording = false;
@@ -227,6 +340,8 @@ class _CompareWidgetState extends State<CompareWidget> {
 
   Future<void> _stopRecording() async {
     _elapsedTimer?.cancel();
+    _setKaraokeRecording(false);
+    WakelockManager.release('recording');
     final path = await _audioRecorder.stop();
     setState(() {
       _isRecording = false;
@@ -234,7 +349,8 @@ class _CompareWidgetState extends State<CompareWidget> {
       _recordedFilePath = path;
       _recordingCompleted = true;
     });
-    _showRecordingCompleteDialog();
+    // Auto-compare straight away — no "Recording complete" popup.
+    _showScore();
   }
 
   Future<void> _showScore() async {
@@ -258,24 +374,17 @@ class _CompareWidgetState extends State<CompareWidget> {
 
       if (!mounted) return;
 
+      // Result is shown INLINE (score badge + analysis + playback), like the
+      // web — no popup. The recorded player stays available.
       setState(() {
         _latestAttempt = attempt;
+        _recordingCompleted = false;
         _successMessage = attempt != null ? '${attempt.score?.toStringAsFixed(1)}%' : null;
         _isSubmitting = false;
-      });
-
-      // Show result dialog with score and playback controls
-      if (attempt != null && mounted) {
-        debugPrint('Showing comparison result dialog with score: ${attempt.score}');
-        _showComparisonResultDialog(attempt);
-      } else {
-        debugPrint('Attempt is null or component not mounted');
-        if (mounted) {
-          setState(() {
-            _errorMessage = 'Comparison completed but no result received';
-          });
+        if (attempt == null) {
+          _errorMessage = 'Comparison completed but no result received';
         }
-      }
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -283,56 +392,6 @@ class _CompareWidgetState extends State<CompareWidget> {
         _isSubmitting = false;
       });
     }
-  }
-
-  void _showComparisonResultDialog(Attempt attempt) {
-    showDialog(
-      context: context,
-      barrierDismissible: true, // Changed to true for testing
-      builder: (context) => AlertDialog(
-        title: const Text('Comparison Result'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Score: ${attempt.score?.toStringAsFixed(1)}%',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.primaryAccent),
-            ),
-            const SizedBox(height: 16),
-            const Text('Listen to your recording:'),
-            const SizedBox(height: 8),
-            IconButton(
-              onPressed: () => _playRecordedFile(),
-              icon: Icon(_isPlayingPlayback ? Icons.pause_circle : Icons.play_circle),
-              iconSize: 48,
-              color: AppColors.primaryAccent,
-            ),
-            if ((attempt.analysis?['note_sequences']?['reference'] as List?)?.isNotEmpty ?? false)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: NoteComparisonGraph(
-                  referenceNotes: List<String>.from(attempt.analysis?['note_sequences']?['reference'] ?? []),
-                  recordedNotes: List<String>.from(attempt.analysis?['note_sequences']?['recorded'] ?? []),
-                  height: 120,
-                ),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _recordingCompleted = false;
-                _latestAttempt = null;
-                _recordedFilePath = null;
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _cancelAfterRecording() {
@@ -345,86 +404,22 @@ class _CompareWidgetState extends State<CompareWidget> {
     });
   }
 
-  void _showRecordingCompleteDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Recording Complete'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Listen to your recording and decide what to do:'),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  onPressed: () => _playRecordedFile(),
-                  icon: Icon(_isPlayingPlayback ? Icons.pause_circle : Icons.play_circle),
-                  iconSize: 48,
-                  color: AppColors.primaryAccent,
-                ),
-                const SizedBox(width: 16),
-                IconButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _cancelAfterRecording();
-                  },
-                  icon: const Icon(Icons.cancel),
-                  iconSize: 48,
-                  color: AppColors.error,
-                ),
-                const SizedBox(width: 16),
-                IconButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _showScore();
-                  },
-                  icon: const Icon(Icons.compare),
-                  iconSize: 48,
-                  color: AppColors.success,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Text('Play', style: TextStyle(fontSize: 12)),
-                Text('Cancel', style: TextStyle(fontSize: 12)),
-                Text('Compare', style: TextStyle(fontSize: 12)),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _playRecordedFile() {
+    if (_recordedFilePath == null) return;
     if (_isPlayingPlayback) {
       _playbackPlayer.pause();
       setState(() => _isPlayingPlayback = false);
     } else {
-      _playbackPlayer.play(UrlSource(_recordedFilePath!));
+      _playbackPlayer.play(
+        kIsWeb ? UrlSource(_recordedFilePath!) : DeviceFileSource(_recordedFilePath!),
+      );
       setState(() => _isPlayingPlayback = true);
     }
   }
 
-  List<String> _extractKeys(dynamic source) {
-    if (source == null) return [];
-    if (source is Map) {
-      final candidates = [
-        source['keys'],
-        source['reference_keys'],
-        source['recorded_keys'],
-      ];
-      for (var c in candidates) {
-        if (c is List) return c.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
-      }
-    }
-    return [];
+  String _formatDuration(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.inMinutes.remainder(60))}:${two(d.inSeconds.remainder(60))}';
   }
 
   @override
@@ -454,42 +449,18 @@ class _CompareWidgetState extends State<CompareWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header & Algorithm Selector
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  widget.label,
-                  style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w800),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _algorithm,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    items: const [
-                      DropdownMenuItem(value: 'dtw', child: Text('DTW')),
-                      DropdownMenuItem(value: 'default', child: Text('Default')),
-                      DropdownMenuItem(value: 'harmonic', child: Text('Harmonic')),
-                    ],
-                    onChanged: _isRecording || _isSubmitting ? null : (val) => setState(() => _algorithm = val!),
-                    isDense: true,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
+          // Header (no algorithm selector — matches the web). Hidden during
+          // alternating playback so the view collapses to just the live control.
+          if (!_isLiveActive) ...[
+            Text(
+              widget.label,
+              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 20),
+          ],
 
           // Action Buttons
-          if (!_isRecording && _countdown == 0 && !_isSubmitting)
+          if (!_isRecording && _countdown == 0 && !_isSubmitting && !_preparing && !_isLiveActive)
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -522,6 +493,17 @@ class _CompareWidgetState extends State<CompareWidget> {
               ),
             ),
 
+          if (_preparing && _countdown == 0)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Starting…',
+                  style: TextStyle(color: AppColors.primaryAccent, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+            ),
+
           if (_isRecording)
             Column(
               children: [
@@ -540,7 +522,7 @@ class _CompareWidgetState extends State<CompareWidget> {
                       ],
                     ),
                     Text(
-                      '${(_elapsed.inMilliseconds / 1000).toStringAsFixed(1)}s / ${(_maxDuration.inMilliseconds / 1000).toStringAsFixed(1)}s',
+                      '${(_elapsed.inMilliseconds / 1000).toStringAsFixed(1)}s / ${_maxDuration > Duration.zero ? '${(_maxDuration.inMilliseconds / 1000).toStringAsFixed(1)}s' : '…'}',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                   ],
@@ -644,7 +626,7 @@ class _CompareWidgetState extends State<CompareWidget> {
               ),
             ),
 
-          if (_latestAttempt != null && _latestAttempt!.score != null) ...[
+          if (_latestAttempt != null && _latestAttempt!.score != null && !_isLiveActive) ...[
             const SizedBox(height: 16),
             _buildFeedbackBadge(_latestAttempt!.score!),
             if (_latestAttempt!.analysis?['length_penalty'] != null && 
@@ -667,7 +649,7 @@ class _CompareWidgetState extends State<CompareWidget> {
             ),
 
           // Analysis Display (matching Vue logic)
-          if (_latestAttempt != null && _latestAttempt!.analysis != null) ...[
+          if (_latestAttempt != null && _latestAttempt!.analysis != null && !_isLiveActive) ...[
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 12),
@@ -675,43 +657,42 @@ class _CompareWidgetState extends State<CompareWidget> {
             _buildInfoRow('Reference Duration', _latestAttempt!.analysis!['reference_audio']?['duration_formatted'] ?? 'N/A'),
             _buildInfoRow('Recorded Duration', _latestAttempt!.analysis!['recorded_audio']?['duration_formatted'] ?? 'N/A'),
 
-            // Keys Toggle
-            _buildAnalysisToggle(
-              title: _showKeys ? 'Hide keys' : 'Show keys',
-              isActive: _showKeys,
-              onTap: () => setState(() => _showKeys = !_showKeys),
-              content: Column(
+            // Note comparison: the graph is shown automatically (hideable); the
+            // raw note sequences stay hidden until the user asks for them.
+            Builder(builder: (_) {
+              final refNotes = List<String>.from(_latestAttempt!.analysis!['note_sequences']?['reference'] ?? []);
+              final recNotes = List<String>.from(_latestAttempt!.analysis!['note_sequences']?['recorded'] ?? []);
+              if (refNotes.isEmpty && recNotes.isEmpty) return const SizedBox.shrink();
+              return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSubInfo('Reference keys', _extractKeys(_latestAttempt!.analysis!['reference_audio'] ?? _latestAttempt!.analysis).join(', ')),
-                  _buildSubInfo('Recorded keys', _extractKeys(_latestAttempt!.analysis!['recorded_audio'] ?? _latestAttempt!.analysis).join(', ')),
-                ],
-              ),
-            ),
-
-            // Notes Toggle
-            _buildAnalysisToggle(
-              title: _showNotes ? 'Hide note sequences' : 'Show note sequences',
-              isActive: _showNotes,
-              onTap: () => setState(() => _showNotes = !_showNotes),
-              content: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSubInfo('Reference notes', (_latestAttempt!.analysis!['note_sequences']?['reference'] as List?)?.join(', ') ?? 'None'),
-                  _buildSubInfo('Recorded notes', (_latestAttempt!.analysis!['note_sequences']?['recorded'] as List?)?.join(', ') ?? 'None'),
-                  
-                  if (((_latestAttempt!.analysis!['note_sequences']?['reference'] as List?)?.isNotEmpty ?? false) || 
-                      ((_latestAttempt!.analysis!['note_sequences']?['recorded'] as List?)?.isNotEmpty ?? false))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: NoteComparisonGraph(
-                        referenceNotes: List<String>.from(_latestAttempt!.analysis!['note_sequences']?['reference'] ?? []),
-                        recordedNotes: List<String>.from(_latestAttempt!.analysis!['note_sequences']?['recorded'] ?? []),
-                      ),
+                  // Graph toggle (default visible)
+                  _buildAnalysisToggle(
+                    title: _showGraph ? 'Hide note graph' : 'Show note graph',
+                    isActive: _showGraph,
+                    onTap: () => setState(() => _showGraph = !_showGraph),
+                    content: NoteComparisonGraph(
+                      referenceNotes: refNotes,
+                      recordedNotes: recNotes,
                     ),
+                  ),
+
+                  // Note sequences toggle (default hidden)
+                  _buildAnalysisToggle(
+                    title: _showNotes ? 'Hide note sequences' : 'Show note sequences',
+                    isActive: _showNotes,
+                    onTap: () => setState(() => _showNotes = !_showNotes),
+                    content: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSubInfo('Reference notes', refNotes.isEmpty ? 'None' : refNotes.join(', ')),
+                        _buildSubInfo('Recorded notes', recNotes.isEmpty ? 'None' : recNotes.join(', ')),
+                      ],
+                    ),
+                  ),
                 ],
-              ),
-            ),
+              );
+            }),
           ],
 
           // Playback & Live Compare
@@ -722,23 +703,44 @@ class _CompareWidgetState extends State<CompareWidget> {
             Row(
               children: [
                 IconButton.filled(
-                  onPressed: () async {
-                    if (_isPlayingPlayback) {
-                      await _playbackPlayer.stop();
-                      setState(() => _isPlayingPlayback = false);
-                    } else {
-                      if (kIsWeb) {
-                        await _playbackPlayer.play(UrlSource(_recordedFilePath!));
-                      } else {
-                        await _playbackPlayer.play(DeviceFileSource(_recordedFilePath!));
-                      }
-                      setState(() => _isPlayingPlayback = true);
-                    }
-                  },
-                  icon: Icon(_isPlayingPlayback ? Icons.stop : Icons.play_arrow),
+                  onPressed: _playRecordedFile,
+                  icon: Icon(_isPlayingPlayback ? Icons.pause : Icons.play_arrow),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(child: LinearProgressIndicator(value: 0)),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          trackHeight: 4,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                          activeTrackColor: AppColors.primaryAccent,
+                          inactiveTrackColor: AppColors.primaryAccent.withValues(alpha: 0.2),
+                          thumbColor: AppColors.primaryAccent,
+                        ),
+                        child: Slider(
+                          value: _playbackPosition.inMilliseconds
+                              .toDouble()
+                              .clamp(0, _playbackDuration.inMilliseconds > 0 ? _playbackDuration.inMilliseconds.toDouble() : 1),
+                          max: _playbackDuration.inMilliseconds > 0 ? _playbackDuration.inMilliseconds.toDouble() : 1,
+                          onChanged: (v) => _playbackPlayer.seek(Duration(milliseconds: v.toInt())),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(_formatDuration(_playbackPosition), style: AppTextStyles.caption),
+                            Text(_formatDuration(_playbackDuration), style: AppTextStyles.caption),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ],
@@ -749,6 +751,12 @@ class _CompareWidgetState extends State<CompareWidget> {
               referenceUrl: refUrl,
               recordedFilePath: _recordedFilePath!,
               breakpoints: _breakpoints,
+              syncKaraoke: widget.playableType == 'hymn',
+              // Reuse the already-prepared main melody player for the reference
+              // phase (hymn-level only) — eliminates the first-tap download wait
+              // and lets the karaoke follow natively.
+              referencePlayer: widget.playableType == 'hymn' ? widget.mainAudioPlayer : null,
+              referenceDurationSeconds: _knownReferenceDurationSeconds(),
               onActiveChange: (active) => setState(() => _isLiveActive = active),
             ),
           ],

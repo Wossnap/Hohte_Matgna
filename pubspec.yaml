@@ -22,6 +22,12 @@ dependencies:
   permission_handler: ^11.0.0
   path_provider: ^2.1.0
   url_launcher: ^6.2.5
+  # Keeps the screen awake during interactive playback (e.g. Alternating
+  # Playback) so it doesn't dim/lock and stall mid-session.
+  wakelock_plus: ^1.2.8
+  # Detects whether the karaoke is actually on-screen so the wakelock is only
+  # held while the user is viewing it during main-audio playback.
+  visibility_detector: ^0.4.0+2
 
 dev_dependencies:
   flutter_test:
