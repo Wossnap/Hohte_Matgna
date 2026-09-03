@@ -22,6 +22,14 @@ class AudioPlayerWidget extends StatefulWidget {
   final double? endTime;
   final int? bpm;
   final List<double>? beatTimestamps;
+  // Optional content rendered between the controls and the subtle stats line —
+  // used for the main melody to embed the karaoke right under the player, like
+  // the web (player → karaoke → progress → plays/auto-stop).
+  final Widget? embeddedContent;
+  // When true, only the embedded content (the karaoke) is shown — the progress
+  // bar, controls, stats and metronome are hidden. Used during alternating
+  // playback so the screen collapses to just the karaoke + the live control.
+  final bool hideChrome;
 
   const AudioPlayerWidget({
     super.key,
@@ -36,6 +44,8 @@ class AudioPlayerWidget extends StatefulWidget {
     this.endTime,
     this.bpm,
     this.beatTimestamps,
+    this.embeddedContent,
+    this.hideChrome = false,
   });
 
   @override
@@ -409,137 +419,149 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
     _playbackRate = viewModel.playbackRate;
     final remainingLoops = _maxLoops - _loopCount;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.accentGold.withValues(alpha: 0.15)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    // Focused alternating-playback mode: show only the karaoke. The State stays
+    // mounted (the chrome is just dropped from the tree), so playback/loop state
+    // survives toggling in and out.
+    if (widget.hideChrome) {
+      return widget.embeddedContent ?? const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_isLoading)
+          Column(
+            children: [
+              const Center(child: CircularProgressIndicator()),
+              const SizedBox(height: 8),
+              Text('Pre-buffering audio...', style: TextStyle(fontSize: 10, color: AppColors.primaryAccent)),
+            ],
+          )
+        else ...[
+          // Progress Bar
+          Column(
+            children: [
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: AppColors.primaryAccent,
+                  inactiveTrackColor: AppColors.primaryAccent.withValues(alpha: 0.2),
+                  thumbColor: AppColors.primaryAccent,
+                  trackHeight: 4,
+                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                ),
+                child: Slider(
+                  value: _sectionPosition.inSeconds.toDouble().clamp(0, _sectionDuration.inSeconds.toDouble()),
+                  max: _sectionDuration.inSeconds.toDouble() > 0 ? _sectionDuration.inSeconds.toDouble() : 1.0,
+                  onChanged: (value) => _seek(Duration(seconds: value.toInt())),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(_formatDuration(_sectionPosition), style: AppTextStyles.caption),
+                    Text(_formatDuration(_sectionDuration), style: AppTextStyles.caption),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Controls Row: Download + Speed (left), circular Play/Pause (right)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.download_rounded, color: AppColors.primaryAccent),
+                    onPressed: _downloadAudio,
+                    tooltip: 'Download Audio',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.only(right: 12),
+                  ),
+                  _buildSpeedSelector(viewModel),
+                ],
+              ),
+
+              // Circular play button (smaller), matching the web.
+              Material(
+                color: AppColors.primary,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _togglePlayPause,
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Icon(
+                      _isPlaying ? Icons.pause : Icons.play_arrow,
+                      size: 22,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Embedded content (e.g. the karaoke for the main melody), rendered
+          // right under the player like the web.
+          if (widget.embeddedContent != null) ...[
+            const SizedBox(height: 12),
+            widget.embeddedContent!,
+          ],
+
+          const SizedBox(height: 10),
+
+          // Subtle playback stats (plays + auto-stop), muted and small, under
+          // the karaoke/progress — matching the web's understated summary line.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  'Plays: ${widget.initialPlays + _sessionPlayIncrements}   ·   '
+                  'Auto-stops after $remainingLoops more play${remainingLoops == 1 ? '' : 's'}',
+                  style: AppTextStyles.caption.copyWith(
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                    color: AppColors.textSecondary.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+              if (_loopCount > 0)
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _loopCount = 0;
+                      _sessionPlayIncrements = 0;
+                    });
+                  },
+                  child: Text(
+                    'Reset',
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryAccent,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          // Metronome
+          MetronomeWidget(
+            bpm: widget.bpm,
+            beatTimestamps: widget.beatTimestamps,
+            currentPosition: _position,
+            isPlaying: _isPlaying,
           ),
         ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_isLoading)
-            Column(
-              children: [
-                const Center(child: CircularProgressIndicator()),
-                const SizedBox(height: 8),
-                Text('Pre-buffering audio...', style: TextStyle(fontSize: 10, color: AppColors.primaryAccent)),
-              ],
-            )
-          else ...[
-            // Progress Bar
-            Column(
-              children: [
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: AppColors.primaryAccent,
-                    inactiveTrackColor: AppColors.primaryAccent.withValues(alpha: 0.2),
-                    thumbColor: AppColors.primaryAccent,
-                    trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                  ),
-                  child: Slider(
-                    value: _sectionPosition.inSeconds.toDouble().clamp(0, _sectionDuration.inSeconds.toDouble()),
-                    max: _sectionDuration.inSeconds.toDouble() > 0 ? _sectionDuration.inSeconds.toDouble() : 1.0,
-                    onChanged: (value) => _seek(Duration(seconds: value.toInt())),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(_formatDuration(_sectionPosition), style: AppTextStyles.caption),
-                      Text(_formatDuration(_sectionDuration), style: AppTextStyles.caption),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Controls Row: Download, Speed, Play/Pause
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.download_rounded, color: AppColors.primaryAccent),
-                      onPressed: _downloadAudio,
-                      tooltip: 'Download Audio',
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.only(right: 12),
-                    ),
-                    _buildSpeedSelector(viewModel),
-                  ],
-                ),
-
-                IconButton(
-                  onPressed: _togglePlayPause,
-                  icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, size: 28),
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  tooltip: _isPlaying ? 'Pause' : 'Play',
-                ),
-              ],
-            ),
-            
-            // Metronome
-            MetronomeWidget(
-              bpm: widget.bpm,
-              beatTimestamps: widget.beatTimestamps,
-              currentPosition: _position,
-              isPlaying: _isPlaying,
-            ),
-            
-            const SizedBox(height: 16),
-
-            // Loop Info
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Plays: ${widget.initialPlays + _sessionPlayIncrements} | Practices: ${widget.initialPractices}',
-                      style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      'Auto-stops after $remainingLoops more play${remainingLoops == 1 ? '' : 's'}.',
-                      style: AppTextStyles.caption.copyWith(fontSize: 10),
-                    ),
-                  ],
-                ),
-                if (_loopCount > 0)
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _loopCount = 0;
-                        _sessionPlayIncrements = 0;
-                      });
-                    },
-                    child: const Text('Reset'),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
+      ],
     );
   }
 

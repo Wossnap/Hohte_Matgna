@@ -37,6 +37,27 @@ class HymnDetailViewModel extends ChangeNotifier {
   int _gameTotal = 0;
   int _currentGameQuestionIndex = 0;
   
+  // Recording → karaoke sync. The hymn-level CompareWidget drives these while
+  // recording so the karaoke can follow the recording's elapsed time (the audio
+  // isn't playing during recording), matching the web's KaraokeLyrics props.
+  // ValueNotifiers (not notifyListeners) so per-100ms updates don't rebuild the
+  // whole screen — only the karaoke listens.
+  final ValueNotifier<bool> isRecording = ValueNotifier(false);
+  final ValueNotifier<int> recordingElapsedMs = ValueNotifier(0);
+
+  // Alternating-playback (live compare) state. When active, the screen collapses
+  // to a focused view (only the karaoke + the alternating-playback control), and
+  // the karaoke follows the reference audio's position via alternateElapsedMs.
+  // The active flag goes through notifyListeners() so the screen re-lays-out;
+  // the per-tick elapsed stays a pure ValueNotifier so only the karaoke rebuilds.
+  final ValueNotifier<bool> isAlternatePlaybackActive = ValueNotifier(false);
+  final ValueNotifier<int> alternateElapsedMs = ValueNotifier(0);
+
+  void setAlternatePlaybackActive(bool active) {
+    isAlternatePlaybackActive.value = active;
+    notifyListeners();
+  }
+
   // Segment mapping (section index → segment index → global index)
   final Map<int, Map<int, int>> _segmentMapping = {};
   final Map<int, List<LyricSegment>> _sectionSegmentsCache = {};
@@ -608,6 +629,10 @@ class HymnDetailViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _audioSyncViewModel.dispose();
+    isRecording.dispose();
+    recordingElapsedMs.dispose();
+    isAlternatePlaybackActive.dispose();
+    alternateElapsedMs.dispose();
     super.dispose();
   }
 }

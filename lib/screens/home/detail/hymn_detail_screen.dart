@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:mobile/core/theme/app_colors.dart';
 import 'package:mobile/core/theme/app_text_styles.dart';
@@ -82,6 +83,10 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
           final hymnDetail = viewModel.currentHymn;
           if (hymnDetail == null) return const Scaffold(body: SizedBox.shrink());
 
+          // During alternating playback the screen collapses to a focused view:
+          // only the karaoke + the alternating-playback control are shown.
+          final alternateActive = viewModel.isAlternatePlaybackActive.value;
+
           return Scaffold(
             backgroundColor: AppColors.background,
             body: CustomScrollView(
@@ -135,52 +140,18 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                   ],
                 ),
 
-                // Hymn Statistics Row (Synced with Website)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Plays:  ${hymnDetail.userPlays?.toString() ?? '0'}',
-                              style: AppTextStyles.headerMedium.copyWith(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.primaryAccent,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Practices:  ${hymnDetail.userPractices?.toString() ?? '0'}',
-                              style: AppTextStyles.headerMedium.copyWith(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.accentGreen,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       const SizedBox(height: 8),
                       // Main Melody Card
-                      _buildMainMelody(viewModel, hymnDetail),
-                      
+                      _buildMainMelody(viewModel, hymnDetail, alternateActive),
+
                       const SizedBox(height: 32),
-                      
-                      // Sections Header
-                      if (hymnDetail.sections.isNotEmpty) ...[
+
+                      // Sections Header — hidden during alternating playback.
+                      if (hymnDetail.sections.isNotEmpty && !alternateActive) ...[
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -235,7 +206,7 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
     );
   }
 
-  Widget _buildMainMelody(HymnDetailViewModel viewModel, HymnDetail hymnDetail) {
+  Widget _buildMainMelody(HymnDetailViewModel viewModel, HymnDetail hymnDetail, bool alternateActive) {
     return Column(
       children: [
         InkWell(
@@ -253,10 +224,15 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.music_note, color: AppColors.primaryAccent),
+                  SvgPicture.asset(
+                    'assets/images/Hohte_logo.svg',
+                    width: 22,
+                    height: 22,
+                    colorFilter: ColorFilter.mode(AppColors.primaryAccent, BlendMode.srcIn),
+                  ),
                   const SizedBox(width: 12),
                   const Expanded(
-                    child: Text('ዋና (Main Melody)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    child: Text('Full Hymn', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
                   Icon(_isMainMelodyExpanded ? Icons.expand_more : Icons.chevron_right, color: AppColors.primaryAccent),
                 ],
@@ -274,6 +250,8 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
+                   // Player with the karaoke embedded right under it (like the
+                   // web: player → karaoke → progress → subtle plays/auto-stop).
                    AudioPlayerWidget(
                     audioUrl: hymnDetail.hymn.audioUrl!,
                     audioPlayer: _mainAudioPlayer,
@@ -282,83 +260,80 @@ class _HymnDetailScreenState extends State<HymnDetailScreen> {
                     onPlay: () => viewModel.incrementHymnPlay(),
                     bpm: hymnDetail.hymn.bpm,
                     beatTimestamps: hymnDetail.hymn.beatTimestamps,
+                    embeddedContent: hymnDetail.hymnLyricSegments.isNotEmpty
+                        ? InteractiveLyricsWidget(
+                            audioPlayer: _mainAudioPlayer,
+                            lyricSegments: hymnDetail.hymnLyricSegments,
+                          )
+                        : null,
+                    // Collapse the player to just the karaoke during alternating
+                    // playback (CompareWidget below stays mounted so its live
+                    // state survives).
+                    hideChrome: alternateActive,
                   ),
                   const SizedBox(height: 24),
-                  
+
                   CompareWidget(
                     hymnId: hymnDetail.hymn.id,
                     playableType: 'hymn',
                     playableId: hymnDetail.hymn.id,
+                    mainAudioPlayer: _mainAudioPlayer,
                   ),
-                  const SizedBox(height: 24),
-                  
-                  // Lyrics Section Header (karaoke — always shown, like the web)
-                  Row(
-                    children: [
-                      Text('Lyrics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryAccent)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
 
-                  if (hymnDetail.hymnLyricSegments.isNotEmpty)
-                    InteractiveLyricsWidget(
-                      audioPlayer: _mainAudioPlayer,
-                      lyricSegments: hymnDetail.hymnLyricSegments,
-                    )
-                  else
-                    const SizedBox.shrink(),
+                  // Everything below is hidden during alternating playback.
+                  if (!alternateActive) ...[
+                    const SizedBox(height: 24),
+                    const Divider(height: 1),
+                    const SizedBox(height: 24),
 
-                  const SizedBox(height: 24),
-                  const Divider(height: 1),
-                  const SizedBox(height: 24),
-
-                  // Full Lyrics Display Section with inline Lyrics | Game toggle
-                  // (the toggle switches the full lyrics text <-> game, like the web)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.notes_rounded, color: AppColors.primaryAccent, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Full Lyrics',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryAccent,
+                    // Full Lyrics Display Section with inline Lyrics | Game toggle
+                    // (the toggle switches the full lyrics text <-> game, like the web)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.notes_rounded, color: AppColors.primaryAccent, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Full Lyrics',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryAccent,
+                              ),
                             ),
+                          ],
+                        ),
+                        _buildLyricsGameToggle(viewModel),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (viewModel.showLyricsGame)
+                      LyricsGameWidget(
+                        gameContent: hymnDetail.hymn.gameContent,
+                        lyricsContent: hymnDetail.hymn.content,
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+                        ),
+                        child: SelectableText(
+                          hymnDetail.fullLyrics,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            height: 1.8,
+                            fontSize: 16,
+                            color: AppColors.textPrimary.withValues(alpha: 0.9),
+                            letterSpacing: 0.3,
                           ),
-                        ],
-                      ),
-                      _buildLyricsGameToggle(viewModel),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (viewModel.showLyricsGame)
-                    LyricsGameWidget(
-                      gameContent: hymnDetail.hymn.gameContent,
-                      lyricsContent: hymnDetail.hymn.content,
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
-                      ),
-                      child: SelectableText(
-                        hymnDetail.fullLyrics,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          height: 1.8,
-                          fontSize: 16,
-                          color: AppColors.textPrimary.withValues(alpha: 0.9),
-                          letterSpacing: 0.3,
                         ),
                       ),
-                    ),
+                  ],
                 ],
               ),
             ),
