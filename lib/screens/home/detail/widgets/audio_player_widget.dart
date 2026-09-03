@@ -86,6 +86,29 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
   // path (which runs outside build, without context) can re-apply it.
   double _playbackRate = 1.0;
 
+  // Every loop restart re-fetches the audio from the network (play(UrlSource)
+  // — see _restartPlayback). That's fine for a single play, but on repeated
+  // loops — especially while the app is backgrounded/screen-off and the OS
+  // throttles background network activity — a fresh fetch each time causes a
+  // slow restart and can glitch/static if the connection stalls mid-buffer.
+  // We prefetch the file once in the background and reuse those bytes for
+  // every loop after the first, falling back to the network path if the
+  // prefetch hasn't finished yet (e.g. very first loop, or a slow network).
+  Uint8List? _cachedAudioBytes;
+  bool _prefetchStarted = false;
+
+  void _prefetchAudioBytes() {
+    if (_prefetchStarted) return;
+    _prefetchStarted = true;
+    ApiClient.fetchAudioBytes(widget.audioUrl).then((response) {
+      if (response.statusCode == 200 && mounted) {
+        _cachedAudioBytes = response.bodyBytes;
+      }
+    }).catchError((e) {
+      debugPrint('Audio prefetch failed (will keep using network on replay): $e');
+    });
+  }
+
   // Section boundaries
   Duration _sectionStart = Duration.zero;
   Duration _sectionEnd = Duration.zero;
@@ -110,6 +133,8 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
     _setupAudioPlayer();
     _setInitialSource();
     _startLoadingTimeout();
+    // Runs in parallel with the streamed first play — see _cachedAudioBytes.
+    if (!kIsWeb) _prefetchAudioBytes();
   }
 
   Future<void> _setInitialSource() async {
@@ -305,6 +330,10 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
           debugPrint('Web restart fallback to UrlSource: $e');
           await widget.audioPlayer.play(UrlSource(widget.audioUrl));
         }
+      } else if (_cachedAudioBytes != null) {
+        // Already downloaded — replay from memory instead of hitting the
+        // network again (see _prefetchAudioBytes for why).
+        await widget.audioPlayer.play(BytesSource(_cachedAudioBytes!));
       } else {
         await widget.audioPlayer.play(UrlSource(widget.audioUrl));
       }
