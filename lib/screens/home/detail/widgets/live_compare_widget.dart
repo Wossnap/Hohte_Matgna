@@ -59,6 +59,10 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
   bool _isActive = false;
   bool _isPreparing = false; // loading sources / computing ranges
   bool _isPaused = false;
+  // Guards _advanceFromReference/_advanceFromRecorded against double-firing
+  // when both the position-based check and the onPlayerComplete fallback
+  // detect the same phase ending. Reset whenever a new phase starts.
+  bool _advancedThisPhase = false;
   int _currentSegmentIndex = 0;
   String _phase = 'reference'; // 'reference' or 'recorded'
   Duration _startTime = Duration.zero;
@@ -119,8 +123,7 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
         // Drive the karaoke from the reference phase (absolute hymn position).
         _viewModel?.alternateElapsedMs.value = pos.inMilliseconds;
         if (pos >= _endTime - const Duration(milliseconds: 100)) {
-          _refPlayer.pause();
-          _startRecordedSegment(_currentSegmentIndex);
+          _advanceFromReference();
         }
       }
     }));
@@ -129,15 +132,43 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
       if (_isActive && _phase == 'recorded' && !_isPaused) {
         if (mounted) setState(() => _position = pos);
         if (pos >= _endTime - const Duration(milliseconds: 100)) {
-          _recPlayer.pause();
-          if (_currentSegmentIndex < _ranges.length - 1) {
-            _startReferenceSegment(_currentSegmentIndex + 1);
-          } else {
-            _stop();
-          }
+          _advanceFromRecorded();
         }
       }
     }));
+
+    // Fallback for the FINAL segment specifically: its range end equals the
+    // true end of the source, and on that last stretch the position stream
+    // sometimes stops delivering updates (platform-dependent) before it ever
+    // reports a value within 100ms of the end — so the position-based check
+    // above never fires and the sequence hangs on "reference" forever with no
+    // way to reach the recorded phase. The player's own completion event is a
+    // reliable fallback for exactly that case. Guarded by _advancedThisPhase
+    // so whichever signal arrives first wins and the other is a no-op.
+    _subscriptions.add(_refPlayer.onPlayerComplete.listen((_) {
+      if (_isActive && _phase == 'reference') _advanceFromReference();
+    }));
+    _subscriptions.add(_recPlayer.onPlayerComplete.listen((_) {
+      if (_isActive && _phase == 'recorded') _advanceFromRecorded();
+    }));
+  }
+
+  void _advanceFromReference() {
+    if (_advancedThisPhase) return;
+    _advancedThisPhase = true;
+    _refPlayer.pause();
+    _startRecordedSegment(_currentSegmentIndex);
+  }
+
+  void _advanceFromRecorded() {
+    if (_advancedThisPhase) return;
+    _advancedThisPhase = true;
+    _recPlayer.pause();
+    if (_currentSegmentIndex < _ranges.length - 1) {
+      _startReferenceSegment(_currentSegmentIndex + 1);
+    } else {
+      _stop();
+    }
   }
 
   // Prepares the recorded player's source up-front. The reference player is the
@@ -183,6 +214,9 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
     // Release the wakelock if we're torn down mid-session (e.g. user navigates
     // away without hitting stop).
     WakelockManager.release('alternating');
+    if (widget.syncKaraoke && _isActive) {
+      _viewModel?.setAlternatePlaybackActive(false);
+    }
     for (final sub in _subscriptions) {
       sub.cancel();
     }
@@ -230,7 +264,11 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
       _isPaused = false;
     });
     widget.onActiveChange(true);
-    _viewModel?.setAlternatePlaybackActive(true);
+    // Only hymn-level alternating playback collapses the whole screen — a
+    // section's own control uses its local onActiveChange instead. Sections
+    // are hidden entirely while the screen is collapsed, so if a section
+    // triggered this it would tear itself down mid-session.
+    if (widget.syncKaraoke) _viewModel?.setAlternatePlaybackActive(true);
     // Keep the screen on for the whole session. Alternating playback advances by
     // listening to each player's position updates; if the screen dims/locks those
     // get throttled/suspended and the sequence stalls.
@@ -264,7 +302,7 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
       _currentSegmentIndex = 0;
     });
     widget.onActiveChange(false);
-    _viewModel?.setAlternatePlaybackActive(false);
+    if (widget.syncKaraoke) _viewModel?.setAlternatePlaybackActive(false);
     WakelockManager.release('alternating');
   }
 
@@ -279,6 +317,7 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
       _endTime = range.end;
       _position = range.start;
       _isPaused = false;
+      _advancedThisPhase = false;
     });
     _refPlayer.seek(range.start);
     _refPlayer.resume();
@@ -294,6 +333,7 @@ class _LiveCompareWidgetState extends State<LiveCompareWidget> {
       _endTime = range.end;
       _position = range.start;
       _isPaused = false;
+      _advancedThisPhase = false;
     });
     _recPlayer.seek(range.start);
     _recPlayer.resume();

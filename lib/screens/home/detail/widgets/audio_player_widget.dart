@@ -239,6 +239,13 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
   /// stops and resets to the start — matching the Laravel web app's behaviour.
   void _onPlaybackFinished() {
     if (_handlingCompletion) return;
+    // During hymn-level alternating playback, LiveCompareWidget takes over this
+    // exact AudioPlayer instance (as its reference player) to play segments back
+    // to back. Without this guard, the natural end-of-track completion on the
+    // last segment also fires here, and this widget's own auto-replay restarts
+    // the main hymn from zero mid-alternating-session — hijacking playback right
+    // when the recorded phase should start, and again after a clean stop.
+    if (widget.hideChrome) return;
     _handlingCompletion = true;
     // Mark completed up-front: if the replay below fails for any reason, the
     // manual play button will then take the fresh-restart path and recover,

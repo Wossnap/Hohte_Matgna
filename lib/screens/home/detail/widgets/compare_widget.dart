@@ -44,7 +44,11 @@ class CompareWidget extends StatefulWidget {
 class _CompareWidgetState extends State<CompareWidget> {
   final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _playbackPlayer = AudioPlayer();
-  final AudioPlayer _helperPlayer = AudioPlayer(); 
+  final AudioPlayer _helperPlayer = AudioPlayer();
+  // A stable Tween instance (not recreated per build) so TweenAnimationBuilder
+  // only plays the pop-in once when the score pill first appears, rather than
+  // replaying on every unrelated rebuild while alternating playback runs.
+  static final Tween<double> _scorePopTween = Tween(begin: 0.6, end: 1.0);
   
   // State
   bool _isRecording = false;
@@ -75,6 +79,9 @@ class _CompareWidgetState extends State<CompareWidget> {
   
   List<double> _breakpoints = [];
   bool _isLiveActive = false;
+  // While alternating playback runs, the score/analysis are hidden by default
+  // (bug #60) but the user can reveal them without stopping playback.
+  bool _showResultWhileLive = false;
 
   @override
   void initState() {
@@ -459,6 +466,13 @@ class _CompareWidgetState extends State<CompareWidget> {
             const SizedBox(height: 20),
           ],
 
+          // Score stays visible (without stopping playback) once the user asks
+          // for it via "Show result" — see the two conditions below.
+          if (_isLiveActive && _latestAttempt?.score != null) ...[
+            _buildLiveScorePop(_latestAttempt!.score!),
+            const SizedBox(height: 8),
+          ],
+
           // Action Buttons
           if (!_isRecording && _countdown == 0 && !_isSubmitting && !_preparing && !_isLiveActive)
             SizedBox(
@@ -626,7 +640,7 @@ class _CompareWidgetState extends State<CompareWidget> {
               ),
             ),
 
-          if (_latestAttempt != null && _latestAttempt!.score != null && !_isLiveActive) ...[
+          if (_latestAttempt != null && _latestAttempt!.score != null && (!_isLiveActive || _showResultWhileLive)) ...[
             const SizedBox(height: 16),
             _buildFeedbackBadge(_latestAttempt!.score!),
             if (_latestAttempt!.analysis?['length_penalty'] != null && 
@@ -649,7 +663,7 @@ class _CompareWidgetState extends State<CompareWidget> {
             ),
 
           // Analysis Display (matching Vue logic)
-          if (_latestAttempt != null && _latestAttempt!.analysis != null && !_isLiveActive) ...[
+          if (_latestAttempt != null && _latestAttempt!.analysis != null && (!_isLiveActive || _showResultWhileLive)) ...[
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 12),
@@ -757,7 +771,10 @@ class _CompareWidgetState extends State<CompareWidget> {
               // and lets the karaoke follow natively.
               referencePlayer: widget.playableType == 'hymn' ? widget.mainAudioPlayer : null,
               referenceDurationSeconds: _knownReferenceDurationSeconds(),
-              onActiveChange: (active) => setState(() => _isLiveActive = active),
+              onActiveChange: (active) => setState(() {
+                _isLiveActive = active;
+                if (!active) _showResultWhileLive = false;
+              }),
             ),
           ],
         ],
@@ -801,6 +818,71 @@ class _CompareWidgetState extends State<CompareWidget> {
             TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
             TextSpan(text: value.isEmpty ? 'None' : value),
           ],
+        ),
+      ),
+    );
+  }
+
+  // The compact, tappable score pill shown during alternating playback (bug
+  // #60): pops in once when the score first becomes available, colored the
+  // same way as the full result badge (_buildFeedbackBadge) so it reads as
+  // "great/good/needs work" at a glance without stopping playback to see it.
+  Widget _buildLiveScorePop(double score) {
+    final Color color;
+    final Color bgColor;
+    final String emoji;
+    if (score >= 80) {
+      color = AppColors.great;
+      bgColor = AppColors.greatBg;
+      emoji = '🎉';
+    } else if (score >= 65) {
+      color = AppColors.good;
+      bgColor = AppColors.goodBg;
+      emoji = '👍';
+    } else {
+      color = AppColors.work;
+      bgColor = AppColors.workBg;
+      emoji = '💪';
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: _scorePopTween,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.elasticOut,
+      builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => setState(() => _showResultWhileLive = !_showResultWhileLive),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: color, width: 1.5),
+            ),
+            child: Row(
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Text(
+                  '${score.toStringAsFixed(0)}%',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: color),
+                ),
+                const Spacer(),
+                Icon(
+                  _showResultWhileLive ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                  color: color,
+                ),
+                Text(
+                  _showResultWhileLive ? 'Hide result' : 'Show result',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
