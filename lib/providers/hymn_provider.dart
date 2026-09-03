@@ -178,6 +178,24 @@ class HymnProvider with ChangeNotifier {
   }
 
   /// Pull-to-refresh
+  /// Patches a hymn's completion state in the already-loaded lists.
+  ///
+  /// Used when returning from the detail screen so the completion tick appears
+  /// immediately. A full refresh would work too, but it resets pagination and
+  /// the user's scroll position.
+  void applyHymnCompletion(int hymnId, bool isCompleted) {
+    var changed = false;
+    for (final list in [_hymns, _topHymns]) {
+      for (final hymn in list) {
+        if (hymn.id == hymnId && hymn.isCompleted != isCompleted) {
+          hymn.isCompleted = isCompleted;
+          changed = true;
+        }
+      }
+    }
+    if (changed) notifyListeners();
+  }
+
   Future<void> refresh() async {
     await loadHymns();
   }

@@ -11,6 +11,8 @@ class HymnDetail {
   final Map<String, dynamic>? progress;
   final int? userPlays;
   final int? userPractices;
+  /// Hymn-level completion from `user_progress.is_completed` (server truth).
+  final bool isCompleted;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -21,6 +23,7 @@ class HymnDetail {
     this.progress,
     this.userPlays,
     this.userPractices,
+    this.isCompleted = false,
     this.createdAt,
     this.updatedAt,
   });
@@ -46,6 +49,8 @@ class HymnDetail {
     final userPlays = hymnProgress?['play_count'] is int ? hymnProgress!['play_count'] : (props['user_plays'] is int ? props['user_plays'] : null);
     final userPractices = hymnProgress?['practice_count'] is int ? hymnProgress!['practice_count'] : (props['user_practices'] is int ? props['user_practices'] : null);
     
+    final hymnIsCompleted = hymnProgress?['is_completed'] == true;
+
     // Extract section progress map
     final sectionProgressMap = progress?['sections'] is Map<String, dynamic> ? Map<String, dynamic>.from(progress!['sections']) : null;
     
@@ -65,6 +70,7 @@ class HymnDetail {
       progress: progress,
       userPlays: userPlays,
       userPractices: userPractices,
+      isCompleted: hymnIsCompleted,
       createdAt: props['created_at'] != null ? DateTime.parse(props['created_at']) : null,
       updatedAt: props['updated_at'] != null ? DateTime.parse(props['updated_at']) : null,
     );

@@ -62,6 +62,39 @@ class PracticeService {
     }
   }
 
+  /// Persist completion state for a batch of sections in one request.
+  ///
+  /// Mirrors the web app's `toggleSectionComplete`, which posts the toggled
+  /// section together with every descendant/ancestor it cascaded to.
+  Future<void> setSectionsCompletion(Map<int, bool> sections) async {
+    if (sections.isEmpty) return;
+
+    final response = await ApiClient.post(
+      ApiEndpoints.batchSectionsComplete,
+      body: {
+        'sections': sections.entries
+            .map((e) => {'id': e.key, 'is_completed': e.value})
+            .toList(),
+      },
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Failed to save section completion');
+    }
+  }
+
+  /// Persist hymn-level completion.
+  Future<void> setHymnCompletion(int hymnId, bool isCompleted) async {
+    final response = await ApiClient.post(
+      ApiEndpoints.setHymnComplete(hymnId),
+      body: {'is_completed': isCompleted},
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Failed to save hymn completion');
+    }
+  }
+
   /// Get audio breakpoints for comparison
   Future<List<double>> getBreakpoints({
     required String playableType,

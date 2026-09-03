@@ -12,6 +12,8 @@ class Section {
   final int practices;
   final double? bestScore;
   final int? playMinutes;
+  /// Server-side completion state from `user_progress.is_completed`.
+  final bool isCompleted;
   final int order;
   final double? startTime;
   final double? endTime;
@@ -31,6 +33,7 @@ class Section {
     required this.practices,
     this.bestScore,
     this.playMinutes,
+    this.isCompleted = false,
     required this.order,
     this.startTime,
     this.endTime,
@@ -75,6 +78,7 @@ class Section {
     final int practices = progress?['practice_count'] ?? map['practice_count'] ?? 0;
     final double? bestScore = progress?['best_score'] != null ? (progress!['best_score'] as num).toDouble() : null;
     final int? playMinutes = progress?['play_minutes'] is int ? progress!['play_minutes'] : null;
+    final bool isCompleted = progress?['is_completed'] == true;
 
     final childrenRaw = map['children'];
     List<Section> childrenList = [];
@@ -105,6 +109,7 @@ class Section {
       practices: practices,
       bestScore: bestScore,
       playMinutes: playMinutes,
+      isCompleted: isCompleted,
       order: map['order'] != null ? (map['order'] is num ? (map['order'] as num).toInt() : int.parse(map['order'].toString())) : 0,
       startTime: map['start_time'] != null ? (map['start_time'] is num ? (map['start_time'] as num).toDouble() : double.parse(map['start_time'].toString())) : null,
       endTime: map['end_time'] != null ? (map['end_time'] is num ? (map['end_time'] as num).toDouble() : double.parse(map['end_time'].toString())) : null,
@@ -125,6 +130,7 @@ class Section {
       'audio_url': audioUrl,
       'plays': plays,
       'practices': practices,
+      'is_completed': isCompleted,
       'order': order,
       'start_time': startTime,
       'end_time': endTime,

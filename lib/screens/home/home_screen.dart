@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../providers/hymn_provider.dart';
+import '../../providers/practice_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../widgets/app_error.dart';
@@ -40,13 +41,22 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _openHymn(BuildContext context, int hymnId) {
-    Navigator.push(
+  Future<void> _openHymn(BuildContext context, int hymnId) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => HymnDetailScreen(hymnId: hymnId),
       ),
     );
+    if (!context.mounted) return;
+
+    // Reflect any completion change made on the detail screen straight away,
+    // so the list tick appears without a manual pull-to-refresh.
+    final practiceProvider = Provider.of<PracticeProvider>(context, listen: false);
+    if (practiceProvider.currentHymn?.hymn.id == hymnId) {
+      Provider.of<HymnProvider>(context, listen: false)
+          .applyHymnCompletion(hymnId, practiceProvider.isHymnCompleted);
+    }
   }
 
   void _loadMore() {

@@ -25,7 +25,9 @@ class Hymn {
   final int? duration;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  final bool isCompleted;
+  /// Server-side completion. Mutable so the provider can patch it after the
+  /// user completes a hymn on the detail screen, without refetching the list.
+  bool isCompleted;
 
   Hymn({
     required this.id,

@@ -33,4 +33,8 @@ class ApiEndpoints {
   static String incrementHymnPractice(int id) => '/practice/hymn/$id/practice';
   static String incrementSectionPlay(int id) => '/practice/section/$id/play';
   static String incrementSectionPractice(int id) => '/practice/section/$id/practice';
+
+  // Completion persistence (mirrors the web's HymnPracticeController).
+  static const String batchSectionsComplete = '/practice/sections/complete';
+  static String setHymnComplete(int id) => '/practice/$id/complete';
 }
