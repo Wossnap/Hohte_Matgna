@@ -1,6 +1,6 @@
 // lib/screens/home/detail/view_models/hymn_detail_viewmodel.dart
 import 'package:flutter/foundation.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:mobile/core/audio/audio_player.dart';
 import 'package:mobile/models/hymn_detail_model.dart';
 import 'package:mobile/models/section_model.dart';
 import 'package:mobile/models/lyric_segment_model.dart';

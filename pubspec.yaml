@@ -28,6 +28,7 @@ dependencies:
   # Detects whether the karaoke is actually on-screen so the wakelock is only
   # held while the user is viewing it during main-audio playback.
   visibility_detector: ^0.4.0+2
+  just_audio: ^0.10.6
 
 dev_dependencies:
   flutter_test:

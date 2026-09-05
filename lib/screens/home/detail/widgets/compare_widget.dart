@@ -11,7 +11,7 @@ import 'package:mobile/providers/practice_provider.dart';
 import 'package:mobile/screens/home/detail/view_models/hymn_detail_viewmodel.dart';
 import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/core/utils/wakelock_manager.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:mobile/core/audio/audio_player.dart';
 import 'package:mobile/screens/home/detail/widgets/note_comparison_graph.dart';
 import 'live_compare_widget.dart';
 import '../../../../../models/attempt_model.dart';

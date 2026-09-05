@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:mobile/core/audio/audio_player.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile/core/theme/app_colors.dart';
 import 'package:mobile/core/theme/app_text_styles.dart';
@@ -86,29 +86,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
   // path (which runs outside build, without context) can re-apply it.
   double _playbackRate = 1.0;
 
-  // Every loop restart re-fetches the audio from the network (play(UrlSource)
-  // — see _restartPlayback). That's fine for a single play, but on repeated
-  // loops — especially while the app is backgrounded/screen-off and the OS
-  // throttles background network activity — a fresh fetch each time causes a
-  // slow restart and can glitch/static if the connection stalls mid-buffer.
-  // We prefetch the file once in the background and reuse those bytes for
-  // every loop after the first, falling back to the network path if the
-  // prefetch hasn't finished yet (e.g. very first loop, or a slow network).
-  Uint8List? _cachedAudioBytes;
-  bool _prefetchStarted = false;
-
-  void _prefetchAudioBytes() {
-    if (_prefetchStarted) return;
-    _prefetchStarted = true;
-    ApiClient.fetchAudioBytes(widget.audioUrl).then((response) {
-      if (response.statusCode == 200 && mounted) {
-        _cachedAudioBytes = response.bodyBytes;
-      }
-    }).catchError((e) {
-      debugPrint('Audio prefetch failed (will keep using network on replay): $e');
-    });
-  }
-
   // Section boundaries
   Duration _sectionStart = Duration.zero;
   Duration _sectionEnd = Duration.zero;
@@ -133,8 +110,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
     _setupAudioPlayer();
     _setInitialSource();
     _startLoadingTimeout();
-    // Runs in parallel with the streamed first play — see _cachedAudioBytes.
-    if (!kIsWeb) _prefetchAudioBytes();
   }
 
   Future<void> _setInitialSource() async {
@@ -155,6 +130,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
         debugPrint('Using UrlSource as fallback for Web.');
         await widget.audioPlayer.setSource(UrlSource(widget.audioUrl));
       } else {
+        // Stream it: the player begins once a couple of seconds are buffered
+        // rather than waiting for the whole file, and caches what it streams
+        // so replays come off the disk instead of the network.
         await widget.audioPlayer.setSource(UrlSource(widget.audioUrl));
       }
     } catch (e) {
@@ -168,7 +146,11 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
   }
 
   void _startLoadingTimeout() {
-    Future.delayed(const Duration(seconds: 10), () {
+    // Safety net only. Readiness really comes from onDurationChanged (the
+    // player telling us it is prepared) — if this timer wins instead, the
+    // controls appear before the audio can actually start and the user pays
+    // the remaining wait after pressing play, which is the whole bug.
+    Future.delayed(const Duration(seconds: 90), () {
       if (mounted && _isLoading) {
         setState(() => _isLoading = false);
       }
@@ -199,12 +181,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
           _duration = duration;
           _isLoading = false;
         });
-      }
-    }));
-
-    _subscriptions.add(widget.audioPlayer.onPlayerStateChanged.listen((state) {
-      if (mounted && (state == PlayerState.playing || state == PlayerState.paused || state == PlayerState.completed)) {
-        setState(() => _isLoading = false);
       }
     }));
 
@@ -330,11 +306,9 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
           debugPrint('Web restart fallback to UrlSource: $e');
           await widget.audioPlayer.play(UrlSource(widget.audioUrl));
         }
-      } else if (_cachedAudioBytes != null) {
-        // Already downloaded — replay from memory instead of hitting the
-        // network again (see _prefetchAudioBytes for why).
-        await widget.audioPlayer.play(BytesSource(_cachedAudioBytes!));
       } else {
+        // The player cached this while it streamed, so this replays from disk
+        // rather than going back to the network.
         await widget.audioPlayer.play(UrlSource(widget.audioUrl));
       }
       if (restartPosition > Duration.zero) {
@@ -470,7 +444,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget>
             children: [
               const Center(child: CircularProgressIndicator()),
               const SizedBox(height: 8),
-              Text('Pre-buffering audio...', style: TextStyle(fontSize: 10, color: AppColors.primaryAccent)),
+              Text('Getting the hymn ready…', style: TextStyle(fontSize: 10, color: AppColors.primaryAccent)),
             ],
           )
         else ...[

@@ -1,6 +1,6 @@
 // lib/screens/home/detail/view_models/audio_sync_viewmodel.dart
 import 'package:flutter/foundation.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:mobile/core/audio/audio_player.dart';
 import 'package:mobile/models/lyric_segment_model.dart';
 import 'package:mobile/core/api/api_client.dart';
 import 'dart:async';
